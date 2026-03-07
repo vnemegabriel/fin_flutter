@@ -2,16 +2,51 @@
 
 An aerospace engineering Flutter application for fin flutter and divergence analysis of amateur and professional rockets.
 
+[![License: MIT](https://img.shields.io/badge/License-MIT-blue.svg)](LICENSE)
+[![Flutter](https://img.shields.io/badge/Flutter-≥3.10-02569B)](https://flutter.dev)
+[![Dart](https://img.shields.io/badge/Dart-≥3.0-0175C2)](https://dart.dev)
+
+---
+
 ## Features
 
-- **Finite Element Analysis (FEA)**: Kirchhoff DKQ and Mindlin MITC4 plate elements
-- **Vortex Lattice Method (CFD)**: Aerodynamic panel method with Prandtl-Glauert compressibility correction
-- **Classical Lamination Theory (CLT)**: Full [A][B][D] matrix computation for composite laminates
-- **Aeroelastic Flutter Analysis**: U-g method for flutter speed prediction
-- **Static Aeroelastic Divergence**: Minimum positive eigenvalue method
-- **OpenRocket Import**: Parse .ork files to extract fin geometry and flight profiles
-- **Design Optimization**: Nelder-Mead simplex and Genetic Algorithm optimizers
-- **Material Database**: AS4/3501-6, T300/5208, IM7/8552, E-glass/Epoxy, Kevlar/Epoxy
+- **Finite Element Analysis (FEA):** Kirchhoff DKQ and Mindlin MITC4 plate elements
+- **Vortex Lattice Method (CFD):** Aerodynamic panel method with Prandtl-Glauert compressibility correction
+- **Classical Lamination Theory (CLT):** Full [A][B][D] matrix computation for composite laminates
+- **Aeroelastic Flutter Analysis:** U-g method for flutter speed prediction
+- **Static Aeroelastic Divergence:** Minimum positive eigenvalue method
+- **OpenRocket Import:** Parse .ork files to extract fin geometry and flight profiles
+- **Design Optimization:** Nelder-Mead simplex and Genetic Algorithm optimizers
+- **Material Database:** AS4/3501-6, T300/5208, IM7/8552, E-glass/Epoxy, Kevlar/Epoxy
+
+---
+
+## Quick Start
+
+```bash
+git clone https://github.com/vnemegabriel/fin_flutter.git
+cd fin_flutter
+flutter pub get
+flutter run -d linux   # or -d chrome / -d macos / -d windows
+```
+
+See [docs/INSTALL.md](docs/INSTALL.md) for platform-specific setup instructions.
+
+---
+
+## Documentation
+
+| Document | Description |
+|----------|-------------|
+| [docs/theory.md](docs/theory.md) | Complete mathematical theory: CLT, FEA, VLM, flutter, divergence |
+| [docs/test_cases.md](docs/test_cases.md) | 9 benchmark cases with analytical solutions |
+| [docs/user_guide.md](docs/user_guide.md) | Screen-by-screen UI walkthrough |
+| [docs/architecture.md](docs/architecture.md) | Module dependency graph, data-flow, design decisions |
+| [docs/api_reference.md](docs/api_reference.md) | Headless API usage without the Flutter UI |
+| [docs/contributing.md](docs/contributing.md) | How to add materials, elements, optimizers |
+| [docs/INSTALL.md](docs/INSTALL.md) | Linux, macOS, Windows, Web build instructions |
+
+---
 
 ## Architecture
 
@@ -33,6 +68,11 @@ lib/
 └── ui/                # Screens, widgets, themes, routing
 ```
 
+See [docs/architecture.md](docs/architecture.md) for the full dependency graph, pipeline
+data-flow table, and design decision rationale.
+
+---
+
 ## Analysis Pipeline
 
 1. **Geometry Input** → Define fin planform (span, chords, sweep, thickness)
@@ -46,20 +86,22 @@ lib/
 9. **Divergence Solve** → Minimum positive eigenvalue of [K]^{-1}[A_s] → V_divergence
 10. **Results** → V-g diagram, natural frequencies, stability margins
 
-## Getting Started
-
-```bash
-flutter pub get
-flutter run -d linux   # or -d chrome for web
-```
+---
 
 ## Running Tests
 
 ```bash
-flutter test
-flutter test test/core/math/
-flutter test test/integration/
+flutter test                              # all tests
+flutter test test/core/math/              # matrix library
+flutter test test/core/materials/         # CLT tests
+flutter test test/core/fea/               # FEA element and solver tests
+flutter test test/core/cfd/               # VLM tests
+flutter test test/modules/optimization/   # optimizer tests
+flutter test test/modules/openrocket/     # .ork parser tests
+flutter test test/integration/            # end-to-end pipeline test
 ```
+
+---
 
 ## Mathematical Background
 
@@ -76,20 +118,27 @@ D_ij = (1/3) Σ_k Q̄_ij^(k) * (z_k³ - z_{k-1}³)
 ### Flutter Condition (U-g Method)
 
 Flutter occurs when structural damping g crosses zero:
+
 ```
-(-ω²[M] + [K](1+ig) - q·[Q]){η} = 0
+g_i(V) = q(V) · Q̃_ii / K̃_ii − 1
 ```
-Sweep velocity V; flutter = minimum V where Im(p)=0 and Re(p) gives flutter frequency.
+
+Flutter speed V_F = velocity where g_i = 0 for any mode i.
 
 ### Divergence Condition
 
 Static aeroelastic instability when:
+
 ```
 det([K] - q_D·[A_s]) = 0
 q_D = λ_min([K]^{-1}·[A_s])
 V_D = √(2·q_D/ρ)
 ```
 
+Full derivations with references in [docs/theory.md](docs/theory.md).
+
+---
+
 ## License
 
-MIT License - See LICENSE file for details.
+MIT License — see [LICENSE](LICENSE) for details.
