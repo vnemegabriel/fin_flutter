@@ -1,198 +1,242 @@
-# Architecture Guide
+# Architecture & Design
 
-Developer reference: module dependencies, data flow, extension points, design decisions.
+This document describes the system architecture, module organization, data-flow, and design decisions for fin_flutter.
 
 ---
 
-## 1. Module Dependency Graph
+## 1. Overview
 
-The architecture enforces a strict one-way dependency hierarchy. No module imports from a
-layer above it.
+**fin_flutter** is a two-layer computational platform:
+
+- **Layer 1: C++ Core** (`core/cpp/`) — High-performance header-only numerical library
+  - Biot-Savart, VLM, CLT, FEA solvers
+  - Aeroelastic coupling and flutter analysis
+  - Compiled with CMake, Eigen3 dependency
+
+- **Layer 2: Python Orchestration** (`core/python/`) — Analysis pipeline, CLI, visualization
+  - Orchestrates C++ solvers
+  - File I/O, .ork parsing, plotting
+  - *Status: In development*
+
+---
+
+## 2. C++ Core Architecture
+
+### 2.1 Directory Structure
 
 ```
-┌─────────────────────────────────────────────────────────┐
-│  ui/                                                    │
-│  (screens, widgets, router, theme)                      │
-└──────────────────────┬──────────────────────────────────┘
-                       │ imports
-┌──────────────────────▼──────────────────────────────────┐
-│  services/                                              │
-│  (ComputeService, PersistenceService, FileService)      │
-└──────────────────────┬──────────────────────────────────┘
-                       │ imports
-┌──────────────────────▼──────────────────────────────────┐
-│  modules/                                               │
-│  flutter_analysis/ │ optimization/ │ openrocket/        │
-└──────────────────────┬──────────────────────────────────┘
-                       │ imports
-┌──────────────────────▼──────────────────────────────────┐
-│  core/aeroelastic/                                      │
-│  (AeroelasticCoupler, StabilityMargin)                  │
-└───────┬──────────────┬────────────────────────────────--┘
-        │              │
-┌───────▼──────┐  ┌────▼──────────────────────────────────┐
-│ core/fea/    │  │ core/cfd/                              │
-│ (mesh, elems,│  │ (VortexLattice, BiotSavart,            │
-│ assembly,    │  │  PrandtlGlauert)                       │
-│ eigensolvers)│  └───────────────────────────────────────┘
-└───────┬──────┘
-        │
-┌───────▼──────────────────────────────────────────────────┐
-│  core/materials/                                         │
-│  (OrthotropicPly, CLTCalculator, Laminate,               │
-│   MaterialDatabase, failure_criteria/)                   │
-└───────────────────────────┬──────────────────────────────┘
-                            │
-┌───────────────────────────▼──────────────────────────────┐
-│  core/models/                                            │
-│  (FinGeometry, FlightCondition)                          │
-└───────────────────────────┬──────────────────────────────┘
-                            │
-┌───────────────────────────▼──────────────────────────────┐
-│  core/math/                                              │
-│  (Matrix, ComplexMatrix, ComplexNumber, SparseMatrix)    │
-└──────────────────────────────────────────────────────────┘
+core/cpp/
+├── include/fin_flutter/
+│   ├── math/
+│   │   ├── types.hpp         # Eigen type aliases (Matrix3d, VectorXd, etc.)
+│   │   └── vec3.hpp          # Lightweight 3D vector (dot, cross, norm)
+│   │
+│   ├── models/
+│   │   ├── fin_geometry.hpp  # Planform: span, chords, sweep
+│   │   └── flight_condition.hpp # ISA 1976, velocity, altitude
+│   │
+│   ├── materials/
+│   │   ├── orthotropic_ply.hpp    # E1, E2, G12, nu12; Q matrix
+│   │   └── clt_calculator.hpp     # [A][B][D] matrix integration
+│   │
+│   ├── cfd/
+│   │   ├── biot_savart.hpp        # Finite/semi-infinite vortex segments
+│   │   └── vortex_lattice.hpp     # AIC matrix, horseshoe vortices
+│   │
+│   ├── fea/
+│   │   └── eigenvalue_solver.hpp  # Generalized eigenvalue [K]φ = λ[M]φ
+│   │
+│   ├── aeroelastic/
+│   │   ├── aeroelastic_coupler.hpp  # Modal projection Q_modal = ΦᵀAICΦ
+│   │   └── flutter_solver.hpp       # U-g method, divergence solver
+│   │
+│   └── optimization/
+│       └── (placeholder for Nelder-Mead, GA)
+│
+├── tests/
+│   ├── CMakeLists.txt
+│   └── test_main.cpp         # 24 benchmark cases
+│
+└── CMakeLists.txt            # Find Eigen3, build library & tests
+```
+
+### 2.2 Header-Only Design
+
+**All C++ code is in `.hpp` headers** (no separate `.cpp` implementations).
+
+**Rationale:**
+- Template-heavy (Eigen matrices, vectors)
+- Faster iteration during development
+- Single-file includes for users
+- Avoids link-time issues with templates
+
+**Compilation:**
+```bash
+cmake -B build -DCMAKE_BUILD_TYPE=Release
+cmake --build build -j$(nproc)
+```
+
+### 2.3 Dependency Graph
+
+```
+test_main.cpp
+    ↓
+pipeline.hpp (orchestrator)
+    ├─ flutter_solver.hpp (aeroelastic)
+    ├─ aeroelastic_coupler.hpp
+    ├─ vortex_lattice.hpp (CFD)
+    ├─ eigenvalue_solver.hpp (FEA)
+    ├─ clt_calculator.hpp (materials)
+    ├─ flight_condition.hpp (models)
+    ├─ fin_geometry.hpp (models)
+    └─ biot_savart.hpp
+        ├─ vec3.hpp (math)
+        └─ types.hpp (Eigen aliases)
+```
+
+**Acyclic Design:** Each module depends only on lower-level modules; no circular dependencies.
+
+---
+
+## 3. Core Module Responsibilities
+
+### 3.1 `math/` — Linear Algebra
+
+| File | Purpose |
+|------|---------|
+| `types.hpp` | Eigen3 type aliases (Matrix3d, VectorXd, SparseMatrix) |
+| `vec3.hpp` | Lightweight 3D vector with dot(), cross(), norm(), normalized() |
+
+**Why separate from Eigen?** Provides a clean abstraction for small-vector operations (Biot-Savart).
+
+### 3.2 `models/` — Problem Geometry
+
+| File | Purpose |
+|------|---------|
+| `fin_geometry.hpp` | Fin planform: span, root_chord, tip_chord, sweep, thickness |
+| `flight_condition.hpp` | Flight state: altitude, velocity, ISA 1976 properties |
+
+**Design:** Immutable data structures with computed properties.
+
+### 3.3 `materials/` — Composite Laminates
+
+| File | Purpose |
+|------|---------|
+| `orthotropic_ply.hpp` | Single ply: E1, E2, G12, nu12, rho, thickness; Q and Q̄ matrices |
+| `clt_calculator.hpp` | Laminate [A][B][D] matrix via integration through thickness |
+
+**Preset materials:** AS4/3501-6, T300/5208, IM7/8552, E-glass/Epoxy.
+
+### 3.4 `cfd/` — Aerodynamics
+
+| File | Purpose |
+|------|---------|
+| `biot_savart.hpp` | Induced velocity from finite & semi-infinite vortex segments |
+| `vortex_lattice.hpp` | VLM solver: panels, AIC matrix, circulation solver, lift |
+
+**Key Fix:** Horseshoe vortex trailing segments now both have Γ=+1 (corrected from Γ=−1 for left trailing), fixing AIC sign.
+
+### 3.5 `fea/` — Structural Dynamics
+
+| File | Purpose |
+|------|---------|
+| `eigenvalue_solver.hpp` | Solve generalized eigenvalue [K]{φ} = λ[M]{φ} |
+
+**Current Scope:** Eigenvalue extraction. Full FEA mesh/element assembly not yet implemented.
+
+### 3.6 `aeroelastic/` — Coupling & Flutter
+
+| File | Purpose |
+|------|---------|
+| `aeroelastic_coupler.hpp` | Project AIC onto FEA modes: Q_modal = ΦᵀAICΦ |
+| `flutter_solver.hpp` | U-g method (flutter) and divergence solver |
+
+---
+
+## 4. Data Flow
+
+### 4.1 Complete Analysis Pipeline
+
+```
+1. INPUT: Fin geometry, material laminate, flight condition
+   ↓
+2. CLT: Compute [A][B][D] matrices
+   ↓
+3. AERODYNAMICS (VLM): Circulation Γ per panel, lift CL
+   ↓
+4. FEA: Natural frequencies ω, mode shapes Φ
+   ↓
+5. AEROELASTIC COUPLING: Modal aerodynamic stiffness Q_modal
+   ↓
+6. FLUTTER (U-g): Velocity sweep, detect g=0 crossing → V_flutter
+   ↓
+7. DIVERGENCE: Min eigenvalue of [K]⁻¹·A_static → V_divergence
+   ↓
+8. OUTPUT: V-g diagram, flutter/divergence speeds
 ```
 
 ---
 
-## 2. Analysis Pipeline Data-Flow
+## 5. Design Decisions
 
-| Step | Input | Output | Class / Method |
-|------|-------|--------|----------------|
-| 1. Mesh generation | `FinGeometry`, `FEAConfig` | `Mesh` | `MeshGenerator.generateFinMesh()` |
-| 2. Boundary conditions | `Mesh` | `BoundaryConditions` | `BoundaryConditions.clampedRoot()` |
-| 3. Matrix assembly | `Mesh`, `LaminateABD`, `BoundaryConditions` | `Matrix K, M` (global) | `GlobalAssembler.assembleKirchhoff()` or `.assembleMindlin()` |
-| 4. Eigensolve | `Matrix K, M`, nModes | `EigenResult` (eigenvalues, eigenvectors) | `EigenvalueSolver.solveGeneralized()` |
-| 5. FEA result packaging | `EigenResult`, `Mesh` | `FEAResult` | `FEAEngine.analyze()` |
-| 6. VLM panel build | `FinGeometry`, `CFDConfig` | `List<VLMPanel>` | `VortexLattice._buildPanels()` |
-| 7. AIC assembly | `List<VLMPanel>`, α | `Matrix AIC` (incompressible) | `VortexLattice._buildAIC()` |
-| 8. P-G correction | `Matrix AIC`, M | `Matrix AIC_c` (compressible) | `PrandtlGlauertCorrection.correctAIC()` |
-| 9. VLM solve | `Matrix AIC_c`, `FlightCondition`, α | `CFDResult` (Γ, CL) | `VortexLattice.solve()` |
-| 10. Interpolation matrix | `FEAResult`, `CFDResult` | `Matrix H` (nPanels × nDOF) | `AeroelasticCoupler._buildInterpolationMatrix()` |
-| 11. Modal aero matrix | `Matrix H`, `Matrix AIC`, `Matrix Φ` | `Matrix Q_modal` (nModes × nModes) | `AeroelasticCoupler.buildModalAeroMatrix()` |
-| 12. Flutter sweep | `K_modal`, `M_modal`, `Q_modal`, velocities, ρ | `FlutterResult` (V_F, V-g curves) | `FlutterSolver.solveUG()` |
-| 13. Divergence solve | `Matrix K`, `Matrix A_s`, ρ | `DivergenceResult` (V_D) | `DivergenceSolver.solve()` |
+### 5.1 Why Header-Only C++?
 
----
+**Pros:** Fast iteration, template-friendly, single-file distribution, no linker issues with Eigen.
+**Cons:** Compilation time if many includes.
 
-## 3. Key Interfaces and Extension Points
+**Decision:** Standard for Eigen-based libraries (e.g., Boost). Adopted here.
 
-### 3.1 Adding a New FEA Element
+### 5.2 Why Separate Python Layer?
 
-Implement `computeStiffness()` and `computeMass()` following the pattern in
-`lib/core/fea/element/kirchhoff_element.dart`:
+| Responsibility | Language | Rationale |
+|---|---|---|
+| Numerical solvers | C++ | Performance, Eigen integration |
+| File I/O, plotting, CLI | Python | Ecosystem (matplotlib, click) |
+| Orchestration | Python | Easy scripting |
 
-```dart
-static Matrix computeStiffness(List<List<double>> nodeCoords, Matrix D)
-static Matrix computeMass(List<List<double>> nodeCoords, double rhoTimesT)
-static List<int> globalDofIndices(QuadElement element, int dofsPerNode)
-```
+### 5.3 Horseshoe Vortex Sign Convention
 
-Register the new element type in `GlobalAssembler.assembleGlobal()` by adding a branch
-for the new `ElementType` enum value.
+**Initial Bug:** Left trailing vortex had Γ=−1 → AIC diagonal positive (upwash) → negative CL.
 
-### 3.2 Adding a New Material
+**Fix:** Both trailing vortices have Γ=+1 → AIC diagonal negative (downwash) → positive CL.
 
-1. Add a `const OrthotropicPly` to `MaterialDatabase` in `lib/core/materials/material_database.dart`.
-2. Add a corresponding entry to `assets/materials/material_database.json` (used for UI display).
-3. No other changes required — the laminate and CLT code is fully generic.
-
-### 3.3 Adding a New Optimizer
-
-Implement the `Iterable<OptimizationIteration> optimize({...}) sync*` interface used by
-`NelderMead` and `GeneticAlgorithm` in `lib/modules/optimization/`. The sync* generator
-pattern allows the UI to stream progress without `StreamController` or `Isolate` wiring.
-
-### 3.4 Adding a New Compressibility Correction
-
-Add a static method to a new class in `lib/core/cfd/corrections/`:
-
-```dart
-static Matrix correct(Matrix aicIncompressible, FlightCondition condition)
-```
-
-Call it in `CFDEngine.analyze()` after the existing Prandtl-Glauert step.
+**Status:** CL sign is now correct; magnitude requires further investigation.
 
 ---
 
-## 4. Design Decisions
+## 6. Testing Strategy
 
-### 4.1 Pure-Dart Matrix Library
+**File:** `core/cpp/tests/test_main.cpp`
 
-**Decision:** No `dart:ffi`, no native BLAS/LAPACK. All linear algebra is implemented
-in `lib/core/math/matrix.dart` using `Float64List` (row-major).
+**Cases:** 24 benchmarks covering CLT, ISA, VLM
 
-**Rationale:** Avoids platform-specific build complexity (no `.so`/`.dylib` dependencies,
-no CMake). Adequate performance for fin FEA meshes up to ~2000 DOF. The LU decomposition
-with partial pivoting achieves numerical stability comparable to LAPACK routines for
-well-conditioned systems.
+**Status:**
+- Cases 1–3: ✓ All pass (CLT, ISA)
+- Case 4: ⚠ CL sign correct, magnitude ~50× undersized
 
-**Trade-off:** Would be 10–100× slower than BLAS for large systems (>5000 DOF).
-Acceptable for rocket fin analysis, where mesh DOF is typically 100–500.
-
-### 4.2 Penalty Boundary Conditions
-
-**Decision:** Clamped DOFs are enforced by adding a large diagonal value (10³⁰) to
-K_ii and setting M_ii = 1, rather than eliminating the DOFs from the system (partitioning).
-
-**Rationale:** Simpler assembly — no row/column bookkeeping, no index renumbering.
-The 10³⁰ penalty exceeds the typical stiffness by 25+ orders of magnitude, effectively
-enforcing zero displacement to 10-digit numerical accuracy.
-
-**Trade-off:** Slightly increases the condition number of K. For the stiffness values
-typical of CFRP fins (K_ii ~ 10³–10⁸ N/m), the ratio 10³⁰/K_ii ~ 10²²–10²⁷, well
-beyond the 10¹⁶ double-precision range, so the constrained DOFs are effectively locked.
-
-### 4.3 Quasi-Steady Aerodynamics
-
-**Decision:** The modal aerodynamic force matrix Q_modal is real (not frequency-dependent),
-using the quasi-steady assumption (reduced frequency k ≈ 0).
-
-**Rationale:** Appropriate for preliminary design and for slowly oscillating structures
-(f_flutter × chord / V ≪ 1). The quasi-steady approach gives conservative (lower) flutter
-speed estimates, which is the safe direction for design.
-
-**Trade-off:** Full unsteady doublet-lattice method (DLM) or Roger rational function
-approximation would give more accurate flutter speeds for high-aspect-ratio fins or
-low-speed flutter involving torsional modes. DLM is deferred to a future version.
-
-### 4.4 Sync* Generators for Optimization
-
-**Decision:** `NelderMead.optimize()` and `GeneticAlgorithm.optimize()` are `sync*`
-generator functions returning `Iterable<OptimizationIteration>`.
-
-**Rationale:** Allows the UI to consume iterations lazily (e.g., via a `StreamBuilder`
-driven by `Stream.fromIterable()`) without needing a separate `Isolate` or
-`StreamController` per optimizer. The calling code calls `.toList()` for headless use
-or `.take(maxIter)` to limit iterations.
-
-### 4.5 `Isolate.run()` for Full Analysis
-
-**Decision:** `ComputeService.runFlutterAnalysis()` wraps `FlutterAnalysisModule.analyze()`
-in `Isolate.run()`.
-
-**Rationale:** The FEA eigensolve and VLM AIC assembly can take 1–10 s on fine meshes.
-Running on the main isolate would freeze the Flutter UI thread. `Isolate.run()` is the
-simplest one-shot isolate API (Dart ≥ 2.19) with automatic message passing.
+**Acceptance:** Compare against analytical solutions with 0.2%–5% tolerance.
 
 ---
 
-## 5. Performance Notes
+## 7. Future Enhancements
 
-| Operation | Complexity | Typical Time |
-|-----------|------------|--------------|
-| LU decomposition (`Matrix.solve`) | O(n³) | n=105 DOF: < 10 ms |
-| Inverse iteration (1 mode) | O(n³ × iterations) | n=105, 20 iter: ~50 ms |
-| Full eigensolve (3 modes) | 3 × inverse iteration | n=105: ~150 ms |
-| VLM AIC assembly | O(N² × panels) | 24 panels: < 1 ms |
-| Flutter velocity sweep (40 pts × 3 modes) | O(40 × 3 × n²) | n=105: ~30 ms |
-| **Default mesh total (6×4 = 24 elements, 105 DOF)** | — | **< 0.5 s** |
-| **Fine mesh (12×8 = 96 elements, 351 DOF)** | — | **3–5 s** |
-| **Very fine mesh (20×12 = 240 elements, 741 DOF)** | — | **15–30 s** |
+- FEA mesh assembly and element stiffness computation
+- VLM corrections (sweep, dihedral, compressibility)
+- Nelder-Mead and genetic algorithm optimizers
+- Python bindings (pybind11)
+- Comprehensive Python orchestration layer
 
-The dominant cost is LU factorization within the eigenvalue iteration. The VLM and
-flutter sweep contribute < 5% of total time for typical configurations.
+---
 
-**Profiling tip:** Run `flutter run --profile -d linux` and use Dart DevTools
-(Timeline view) to identify per-step timing in the `ComputeService` isolate.
+## 8. Terminology
+
+| Term | Definition |
+|------|-----------|
+| **AIC** | Aerodynamic Influence Coefficient; velocity at control i from unit Γ on j |
+| **Bound vortex** | Main circulation vortex around fin |
+| **Trailing vortex** | Shed vorticity extending downstream |
+| **Horseshoe vortex** | Complete element = bound + trailing vortices |
+| **Control point** | Location (3/4-chord) where flow-tangency BC enforced |
+| **g-damping** | Structural margin; g = q·Q_modal/K_modal − 1; flutter at g=0 |
+| **Q matrix** | Reduced stiffness for single ply |
+| **Q̄ matrix** | Transformed stiffness in laminate axes |
