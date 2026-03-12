@@ -1,188 +1,322 @@
 # Installation Guide
 
+fin_flutter is a C++/Python computational platform. This guide covers building the C++ core and setting up the Python orchestration layer.
+
+---
+
 ## Prerequisites
 
-| Dependency | Minimum Version | Notes |
-|------------|----------------|-------|
-| Flutter SDK | 3.10.0 | Includes Dart 3.0+ |
-| Dart SDK | 3.0.0 | Bundled with Flutter |
-| Git | 2.x | For cloning |
+### C++ Core
 
-Download Flutter: https://docs.flutter.dev/get-started/install
+| Dependency | Minimum | Notes |
+|-----------|---------|-------|
+| **CMake** | 3.16 | Build system |
+| **C++ Compiler** | C++17 | g++, clang, MSVC |
+| **Eigen3** | 3.3 | Linear algebra library |
+| **Git** | 2.x | Version control |
+
+### Python Layer (Optional)
+
+| Dependency | Minimum | Notes |
+|-----------|---------|-------|
+| **Python** | 3.10 | For orchestration |
+| **pip** | 21.0 | Package manager |
 
 ---
 
 ## Quick Start
 
+### 1. Clone Repository
+
 ```bash
 git clone https://github.com/vnemegabriel/fin_flutter.git
 cd fin_flutter
-flutter pub get
-flutter run -d linux          # Desktop (Linux)
-flutter run -d macos          # Desktop (macOS)
-flutter run -d windows        # Desktop (Windows)
-flutter run -d chrome         # Web
+```
+
+### 2. Build C++ Core
+
+```bash
+cd core/cpp
+cmake -B build -DCMAKE_BUILD_TYPE=Release
+cmake --build build -j$(nproc)
+
+# Run benchmark tests
+./build/tests/run_tests
+```
+
+**Expected output:**
+```
+=== Results: 23 passed, 1 failed ===
+Case 4 — VLM rectangular flat plate AR=5, alpha=5deg
+  [FAIL] CL in [0.36, 0.42] CL=0.007746
+```
+
+(VLM magnitude undersizing under investigation; sign is correct.)
+
+### 3. Setup Python Layer (Optional)
+
+```bash
+cd core/python
+pip install -e ".[dev]"
+pytest
 ```
 
 ---
 
 ## Platform-Specific Setup
 
-### Linux
+### Linux (Ubuntu / Debian)
 
-Install GTK development libraries:
+#### Install Dependencies
 
 ```bash
-# Ubuntu / Debian
+# Update package lists
 sudo apt update
-sudo apt install libgtk-3-dev libblkid-dev liblzma-dev
 
-# Fedora / RHEL
-sudo dnf install gtk3-devel
+# C++ build tools and Eigen3
+sudo apt install -y \
+  build-essential \
+  cmake \
+  libeigen3-dev \
+  git
+
+# Python (if using orchestration layer)
+sudo apt install -y \
+  python3.10 \
+  python3-pip \
+  python3-venv
 ```
 
-Enable the Linux desktop target:
+#### Verify Installation
 
 ```bash
-flutter config --enable-linux-desktop
-flutter doctor   # verify Linux toolchain shows ✓
+cmake --version      # CMake >= 3.16
+g++ --version        # GCC with C++17 support
+python3 --version    # Python >= 3.10
 ```
 
-Build a release binary:
+#### Build & Test
 
 ```bash
-flutter build linux --release
-# Output: build/linux/x64/release/bundle/fin_flutter
+cd fin_flutter/core/cpp
+cmake -B build -DCMAKE_BUILD_TYPE=Release
+cmake --build build -j$(nproc)
+./build/tests/run_tests
 ```
+
+---
 
 ### macOS
 
-Requires Xcode 14 or later (from the Mac App Store).
+#### Install Dependencies
 
 ```bash
-sudo xcode-select --install
-xcodebuild -runFirstLaunch   # accept license
+# Homebrew (if not installed)
+/bin/bash -c "$(curl -fsSL https://raw.githubusercontent.com/Homebrew/install/HEAD/install.sh)"
 
-flutter config --enable-macos-desktop
-flutter doctor               # verify Xcode toolchain ✓
+# C++ build tools and Eigen3
+brew install cmake eigen
 
-flutter build macos --release
-# Output: build/macos/Build/Products/Release/fin_flutter.app
+# Python (if using orchestration layer)
+brew install python@3.10
 ```
 
-### Windows
-
-Requires Visual Studio 2022 (Community edition is free) with these workloads:
-- Desktop development with C++
-- Windows 10 SDK
-
-```powershell
-flutter config --enable-windows-desktop
-flutter doctor               # verify Visual Studio toolchain ✓
-
-flutter build windows --release
-# Output: build\windows\x64\runner\Release\fin_flutter.exe
-```
-
-### Web
-
-No extra system dependencies. Serve the output with any static file server.
+#### Verify Installation
 
 ```bash
-flutter build web --release
-# Output: build/web/
-
-# Serve locally with Python
-cd build/web && python3 -m http.server 8080
-# Then open http://localhost:8080
+cmake --version
+clang++ --version
+python3 --version
 ```
 
-> **Note:** The full analysis pipeline uses `dart:isolate` which is not available in web Workers
-> under all browsers. If running on Web, the compute service falls back to running on the main
-> thread. For production deployments, the Linux or macOS desktop build is recommended.
-
----
-
-## Running Tests
-
-No additional setup is required. The test suite uses only Flutter's built-in test framework.
+#### Build & Test
 
 ```bash
-# All tests
-flutter test
-
-# Specific subsystem
-flutter test test/core/math/
-flutter test test/core/materials/
-flutter test test/core/fea/
-flutter test test/core/cfd/
-flutter test test/modules/optimization/
-flutter test test/modules/openrocket/
-flutter test test/integration/
-
-# With coverage (requires lcov for HTML report)
-flutter test --coverage
-genhtml coverage/lcov.info -o coverage/html
-open coverage/html/index.html
+cd fin_flutter/core/cpp
+cmake -B build -DCMAKE_BUILD_TYPE=Release
+cmake --build build -j$(nproc)
+./build/tests/run_tests
 ```
 
 ---
 
-## IDE Setup
+### Windows (MSVC)
 
-### VS Code
+#### Install Dependencies
 
-Install the [Flutter extension](https://marketplace.visualstudio.com/items?itemName=Dart-Code.flutter).
-The workspace is automatically configured. Use `F5` to run.
+1. **Visual Studio Community 2022**
+   - Download: https://visualstudio.microsoft.com/
+   - Ensure "Desktop development with C++" workload is selected
 
-### Android Studio / IntelliJ
+2. **CMake**
+   - Download: https://cmake.org/download/
+   - Add to PATH during installation
 
-Install the **Flutter** and **Dart** plugins via *Settings → Plugins*.
-Open the project root directory; IntelliJ will detect `pubspec.yaml` automatically.
+3. **Eigen3**
+   - Download: https://eigen.tuxfamily.org/index.php
+   - Extract to a known location (e.g., `C:\Libraries\eigen-3.4.0`)
 
----
+4. **Python** (optional)
+   - Download: https://www.python.org/downloads/
+   - Add to PATH during installation
 
-## Dependency Overview
+#### Build & Test
 
-Core Flutter packages used by this project (`pubspec.yaml`):
+```bash
+cd fin_flutter\core\cpp
+cmake -B build -DCMAKE_BUILD_TYPE=Release -DEIGEN3_INCLUDE_DIR=C:\Libraries\eigen-3.4.0
+cmake --build build --config Release
+build\tests\Release\run_tests.exe
+```
 
-| Package | Use |
-|---------|-----|
-| `flutter_riverpod` | Reactive state management |
-| `go_router` | Declarative navigation |
-| `file_picker` | .ork file import dialog |
-| `archive` | ZIP extraction for .ork parsing |
-| `xml` | XML parsing for OpenRocket data |
-| `fl_chart` | V-g diagram and optimization charts |
-| `pdf` | Results export to PDF |
-| `shared_preferences` | Project persistence |
+(Adjust `EIGEN3_INCLUDE_DIR` path as needed.)
 
 ---
 
 ## Troubleshooting
 
-**`flutter doctor` shows missing tools**
-Run `flutter doctor --verbose` and follow the links provided for each failing check.
+### CMake Error: "Could not find a package configuration file provided by 'Eigen3'"
 
-**`flutter pub get` fails with network errors**
-Set a pub proxy if behind a corporate firewall:
+**Solution:** Install Eigen3 via package manager or specify path:
+
 ```bash
-export PUB_HOSTED_URL=https://pub.flutter-io.cn  # China mirror
-flutter pub get
+# Ubuntu/Debian
+sudo apt install libeigen3-dev
+
+# Or manually specify
+cmake -DEIGEN3_INCLUDE_DIR=/path/to/eigen3 ..
 ```
 
-**Linux build: `libgtk-3-dev not found`**
-The GTK dev package was not installed. Re-run:
+### CMake Error: "The C compiler 'cc' is not able to compile a simple test program"
+
+**Solution:** Install C++ compiler:
+
 ```bash
-sudo apt install libgtk-3-dev
+# Ubuntu/Debian
+sudo apt install build-essential
+
+# macOS
+xcode-select --install
+
+# Windows: Install Visual Studio (see above)
 ```
 
-**Web: isolate compute not available**
-The web platform has restricted isolate support. For computationally intensive analyses
-(fine mesh, many modes), prefer the desktop build.
+### Build Fails with "fatal error: Eigen/Dense: No such file or directory"
 
-**LU decomposition `NaN` or `Inf` in results**
-This usually indicates a near-singular stiffness matrix. Check:
-1. Boundary conditions are applied (at least one clamped node)
-2. Mesh does not contain collapsed elements (check span > 0, chords > 0)
-3. Material D matrix is positive definite (non-zero ply thicknesses)
+**Solution:** Eigen3 not found. Verify installation:
+
+```bash
+# Linux/macOS
+find /usr -name "Eigen" 2>/dev/null
+find /opt -name "Eigen" 2>/dev/null
+
+# macOS with Homebrew
+brew list eigen
+
+# If installed, try:
+cmake -DEIGEN3_INCLUDE_DIR=$(brew --prefix eigen)/include/eigen3 ..
+```
+
+### Tests Pass but Report "CL not in range [0.36, 0.42]"
+
+This is Case 4 (VLM flat plate test). The sign is now correct (positive CL), but magnitude is undersized by ~50×. See [docs/test_cases.md](test_cases.md) for details. This is a known issue under investigation.
+
+---
+
+## Building with Different Configurations
+
+### Release (Optimized)
+
+```bash
+cmake -B build -DCMAKE_BUILD_TYPE=Release
+cmake --build build -j$(nproc)
+```
+
+### Debug (With Symbols & Assertions)
+
+```bash
+cmake -B build -DCMAKE_BUILD_TYPE=Debug
+cmake --build build -j$(nproc)
+./build/tests/run_tests
+```
+
+### Verbose Build Output
+
+```bash
+cmake --build build --verbose
+```
+
+---
+
+## Python Setup (Optional)
+
+### Create Virtual Environment
+
+```bash
+cd core/python
+python3 -m venv venv
+source venv/bin/activate      # Linux/macOS
+# or
+venv\Scripts\activate          # Windows
+```
+
+### Install Package in Development Mode
+
+```bash
+pip install -e ".[dev]"
+```
+
+### Run Tests
+
+```bash
+pytest
+```
+
+### Run CLI Help
+
+```bash
+python -m fin_flutter.cli --help
+```
+
+(CLI not yet implemented; placeholder for future release.)
+
+---
+
+## Verifying Installation
+
+### C++ Core
+
+```bash
+cd core/cpp
+./build/tests/run_tests
+```
+
+Should output:
+```
+=== Results: 23 passed, 1 failed ===
+```
+
+### Python Environment
+
+```bash
+python3 -c "import numpy; import matplotlib; print('OK')"
+```
+
+---
+
+## Next Steps
+
+- **Read [docs/theory.md](theory.md)** for mathematical background
+- **Explore [core/cpp/tests/test_main.cpp](../core/cpp/tests/test_main.cpp)** for usage examples
+- **Check [docs/architecture.md](architecture.md)** for module structure
+- **See [CLAUDE.md](../CLAUDE.md)** for development guidelines
+
+---
+
+## Support
+
+For issues:
+1. Check [Troubleshooting](#troubleshooting) section above
+2. Verify all prerequisites are installed
+3. Review [docs/test_cases.md](test_cases.md) for known limitations
+4. Open an issue on GitHub with CMake output (run with `-DCMAKE_VERBOSE_MAKEFILE=ON`)
