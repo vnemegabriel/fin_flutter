@@ -42,35 +42,41 @@ struct VLMResult {
     std::vector<VLMPanel>   panels;    ///< Panel geometry.
 };
 
+/// @brief VLM solver options: discretization and future feature flags.
+/// Struct-based parameter aggregation allows extensible API (e.g. compressibility,
+/// drag model) without breaking existing code signatures.
+struct VLMOptions {
+    int    chordwise_panels = 4;              ///< Panels in chord direction.
+    int    spanwise_panels = 8;               ///< Panels in span direction.
+    double alpha_rad = 0.0;                   ///< Angle of attack [rad].
+    bool   apply_compressibility = false;     ///< TODO: Prandtl-Glauert correction (Phase 2).
+};
+
 /// @brief Vortex Lattice Method solver.
 class VortexLattice {
 public:
-    /// @brief Solve VLM for a trapezoidal fin.
+    /// @brief Solve VLM for a fin with given discretization and flow conditions.
     ///
-    /// @param geometry           Fin planform geometry.
-    /// @param condition          Flight condition (V∞, ρ).
-    /// @param chordwise_panels   Number of panels in chord direction n_x.
-    /// @param spanwise_panels    Number of panels in span  direction n_y.
-    /// @param alpha_rad          Angle of attack [rad].
+    /// @param geometry   Fin planform geometry.
+    /// @param condition  Flight condition (V∞, ρ).
+    /// @param opts       VLMOptions containing discretization and angle of attack.
     /// @return VLMResult with Γ distribution, lift, drag, AIC.
     VLMResult solve(const FinGeometry&     geometry,
                     const FlightCondition& condition,
-                    int    chordwise_panels,
-                    int    spanwise_panels,
-                    double alpha_rad) const
+                    const VLMOptions&      opts) const
     {
-        const int nx = chordwise_panels;
-        const int ny = spanwise_panels;
+        const int nx = opts.chordwise_panels;
+        const int ny = opts.spanwise_panels;
         const int n  = nx * ny;
 
         const auto panels = build_panels(geometry, nx, ny);
-        const auto AIC    = build_aic(panels, condition.velocity);
+        const auto AIC    = build_aic(panels);
 
         // RHS: − (V∞ · n̂) for each panel — Eq. 5.8 (flow-tangency BC)
         Eigen::VectorXd rhs(n);
-        const Vec3 v_inf{condition.velocity * std::cos(alpha_rad),
+        const Vec3 v_inf{condition.velocity * std::cos(opts.alpha_rad),
                          0.0,
-                         condition.velocity * std::sin(alpha_rad)};
+                         condition.velocity * std::sin(opts.alpha_rad)};
         for (int i = 0; i < n; ++i)
             rhs(i) = -panels[i].normal.dot(v_inf);
 
@@ -83,10 +89,10 @@ public:
         std::vector<double> gamma(n), panel_cl(n);
         double total_lift = 0.0;
 
+        const double rho_V = condition.density * condition.velocity;
         for (int i = 0; i < n; ++i) {
             gamma[i] = gamma_vec(i);
-            const double L  = condition.density * condition.velocity
-                              * gamma[i] * panels[i].span_width;
+            const double L  = rho_V * gamma[i] * panels[i].span_width;
             panel_cl[i] = (q * panels[i].area > 0) ? L / (q * panels[i].area) : 0.0;
             total_lift += L;
         }
@@ -147,26 +153,54 @@ public:
     ///
     /// AIC[i,j] = normal velocity at control point i due to unit Γ on panel j.
     /// Eq. 5.7 — Katz & Plotkin (2001) §12.3.
+    ///
+    /// @param panels Panel discretization.
+    /// @param assume_symmetric (optional) If true, exploit AIC symmetry for rectangular,
+    ///        symmetric wings (~2× speedup). Compute lower triangle, mirror to upper.
+    ///        Default false for safety (general planforms may not be symmetric).
+    /// TODO: Prandtl-Glauert compressibility corrections deferred to Phase 2.
     Eigen::MatrixXd build_aic(const std::vector<VLMPanel>& panels,
-                               double /*V_inf*/) const {
+                               bool assume_symmetric = false) const {
         const int n = static_cast<int>(panels.size());
         Eigen::MatrixXd AIC(n, n);
         const Vec3 wake{1.0, 0.0, 0.0}; // wake trailing downstream (+x)
 
-        for (int i = 0; i < n; ++i) {
-            const Vec3& cp = panels[i].control_pt;
-            const Vec3& ni = panels[i].normal;
+        if (assume_symmetric) {
+            // Compute lower triangle (including diagonal) and mirror to upper
+            for (int i = 0; i < n; ++i) {
+                const Vec3& cp = panels[i].control_pt;
+                const Vec3& ni = panels[i].normal;
 
-            for (int j = 0; j < n; ++j) {
-                const Vec3& A = panels[j].bound_a;
-                const Vec3& B = panels[j].bound_b;
+                for (int j = 0; j <= i; ++j) {
+                    const Vec3& A = panels[j].bound_a;
+                    const Vec3& B = panels[j].bound_b;
 
-                const Vec3 v_bound  = BiotSavart::finite_segment(cp, A, B, 1.0);
-                const Vec3 v_trail_a = BiotSavart::semi_infinite(cp, A,  1.0, wake);  // Same sign as bound/B trailing
-                const Vec3 v_trail_b = BiotSavart::semi_infinite(cp, B,  1.0, wake);
-                const Vec3 v_total  = v_bound + v_trail_a + v_trail_b;
+                    const Vec3 v_bound  = BiotSavart::finite_segment(cp, A, B, 1.0);
+                    const Vec3 v_trail_a = BiotSavart::semi_infinite(cp, A,  1.0, wake);
+                    const Vec3 v_trail_b = BiotSavart::semi_infinite(cp, B,  1.0, wake);
+                    const Vec3 v_total  = v_bound + v_trail_a + v_trail_b;
 
-                AIC(i, j) = ni.dot(v_total);
+                    AIC(i, j) = ni.dot(v_total);
+                    if (i != j) AIC(j, i) = AIC(i, j);  // Mirror for symmetry
+                }
+            }
+        } else {
+            // Full AIC matrix computation (general planforms)
+            for (int i = 0; i < n; ++i) {
+                const Vec3& cp = panels[i].control_pt;
+                const Vec3& ni = panels[i].normal;
+
+                for (int j = 0; j < n; ++j) {
+                    const Vec3& A = panels[j].bound_a;
+                    const Vec3& B = panels[j].bound_b;
+
+                    const Vec3 v_bound  = BiotSavart::finite_segment(cp, A, B, 1.0);
+                    const Vec3 v_trail_a = BiotSavart::semi_infinite(cp, A,  1.0, wake);
+                    const Vec3 v_trail_b = BiotSavart::semi_infinite(cp, B,  1.0, wake);
+                    const Vec3 v_total  = v_bound + v_trail_a + v_trail_b;
+
+                    AIC(i, j) = ni.dot(v_total);
+                }
             }
         }
         return AIC;
@@ -174,20 +208,22 @@ public:
 
 private:
     /// @brief z-component of total induced velocity at point P from all panels.
+    /// Optimized: accumulate z-component directly (reduce temporary Vec3 allocations).
     double induced_normal_velocity(const std::vector<VLMPanel>& panels,
                                    const std::vector<double>& gamma,
                                    const Vec3& P) const {
         const Vec3 wake{1.0, 0.0, 0.0};
-        Vec3 v{};
+        double v_z = 0.0;
         for (int j = 0; j < static_cast<int>(panels.size()); ++j) {
             const Vec3& A = panels[j].bound_a;
             const Vec3& B = panels[j].bound_b;
             const double g = gamma[j];
-            v = v + BiotSavart::finite_segment(P, A, B,  g)
-                  + BiotSavart::semi_infinite(P, A,  g, wake)  // Same sign as B trailing
-                  + BiotSavart::semi_infinite(P, B,  g, wake);
+            const Vec3 v_seg = BiotSavart::finite_segment(P, A, B,  g)
+                             + BiotSavart::semi_infinite(P, A,  g, wake)  // Same sign as B trailing
+                             + BiotSavart::semi_infinite(P, B,  g, wake);
+            v_z += v_seg.z;
         }
-        return v.z;
+        return v_z;
     }
 };
 

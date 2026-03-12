@@ -49,6 +49,22 @@ static void check_abs(double value, double expected, double tol_abs,
     check(err <= tol_abs, name, detail);
 }
 
+// ── Test Tolerance Constants (Phase 5.3 centralization) ─────────────────────
+// Consolidated from scattered values; reference: docs/test_cases.md & math/constants.hpp
+
+namespace test_tolerances {
+    // Classical Lamination Theory (CLT) — Reddy (2004)
+    static constexpr double kCLT_Rel = 0.002;   // ±0.2% on A, D matrices
+    static constexpr double kCLT_Abs = 1e-3;    // ±1 mN on B matrix
+
+    // ISA 1976 Standard Atmosphere
+    static constexpr double kISA_Rel = 0.005;   // ±0.5% on T, p, ρ, a
+
+    // Vortex Lattice Method (VLM) — empirical range (magnitude under investigation)
+    static constexpr double kVLM_CL_Min = 0.36;
+    static constexpr double kVLM_CL_Max = 0.42;
+}
+
 // ── Case 1: CLT [0]₈ AS4/3501-6 ─────────────────────────────────────────────
 // Reference: docs/test_cases.md §Case 1 — Reddy (2004) Table 3.3.
 // Expected: A₁₁ = 142.75 MN/m ±0.2%, B = 0 (±1 mN), D₁₁ = 11.90 N·m ±0.2%.
@@ -171,7 +187,8 @@ static void test_vlm_rectangular() {
 
     ff::VortexLattice vlm;
     const double alpha_rad = 5.0 * M_PI / 180.0;
-    const auto result = vlm.solve(geo, cond, 8, 12, alpha_rad);
+    ff::VLMOptions opts{8, 12, alpha_rad};
+    const auto result = vlm.solve(geo, cond, opts);
 
     // CL should be positive and within ±10% of Prandtl analytical value 0.392
     check(result.CL > 0.0, "CL > 0");
