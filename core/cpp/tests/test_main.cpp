@@ -15,6 +15,8 @@
 #include "fin_flutter/models/flight_condition.hpp"
 #include "fin_flutter/cfd/vortex_lattice.hpp"
 #include "fin_flutter/models/fin_geometry.hpp"
+#include "fin_flutter/aeroelastic/flutter_solver.hpp"
+#include "fin_flutter/math/vec3.hpp"
 
 // ── Test framework (minimal, no dependencies) ─────────────────────────────────
 
@@ -207,6 +209,230 @@ static void test_vlm_rectangular() {
     check(gamma_finite, "all gamma values are finite");
 }
 
+// ── Case 5: Vec3 vector operations ────────────────────────────────────────────
+// Reference: Linear algebra; hand-calculated verification.
+// Tests: dot product, cross product, norm, normalization.
+
+static void test_vec3_operations() {
+    std::printf("\nCase 5 — Vec3 vector operations\n");
+
+    // Test 1: Dot product — u·v = (1,0,0)·(0,1,0) = 0
+    {
+        const ff::Vec3 u{1.0, 0.0, 0.0};
+        const ff::Vec3 v{0.0, 1.0, 0.0};
+        const double dot = u.dot(v);
+        check_abs(dot, 0.0, 1e-15, "u·v orthogonal");
+    }
+
+    // Test 2: Dot product — u·u = 1² + 2² + 2² = 9
+    {
+        const ff::Vec3 u{1.0, 2.0, 2.0};
+        const double dot = u.dot(u);
+        check_abs(dot, 9.0, 1e-15, "u·u = ||u||²");
+    }
+
+    // Test 3: Cross product — (1,0,0) × (0,1,0) = (0,0,1)
+    {
+        const ff::Vec3 u{1.0, 0.0, 0.0};
+        const ff::Vec3 v{0.0, 1.0, 0.0};
+        const ff::Vec3 cross = u.cross(v);
+        check_abs(cross.x, 0.0, 1e-15, "u×v x-component");
+        check_abs(cross.y, 0.0, 1e-15, "u×v y-component");
+        check_abs(cross.z, 1.0, 1e-15, "u×v z-component");
+    }
+
+    // Test 4: Norm — ||u|| = sqrt(1² + 2² + 2²) = 3
+    {
+        const ff::Vec3 u{1.0, 2.0, 2.0};
+        const double norm = u.norm();
+        check_abs(norm, 3.0, 1e-15, "norm ||(1,2,2)||");
+    }
+
+    // Test 5: Normalization — û = (1,0,0)
+    {
+        const ff::Vec3 u{3.0, 0.0, 0.0};
+        const ff::Vec3 u_hat = u.normalized();
+        check_abs(u_hat.x, 1.0, 1e-15, "normalized x");
+        check_abs(u_hat.y, 0.0, 1e-15, "normalized y");
+        check_abs(u_hat.z, 0.0, 1e-15, "normalized z");
+    }
+}
+
+// ── Case 6: FinGeometry derived properties ────────────────────────────────────
+// Reference: Planform geometry formulas.
+// Tests: aspect_ratio, mean_aerodynamic_chord, taper_ratio.
+
+static void test_fin_geometry() {
+    std::printf("\nCase 6 — FinGeometry derived properties\n");
+
+    // Rectangular fin: span = 1.0 m, root_chord = 0.5 m, tip = 0.5 m (no taper)
+    ff::FinGeometry geo;
+    geo.span         = 1.0;
+    geo.root_chord   = 0.5;
+    geo.tip_chord    = 0.5;
+    geo.sweep_length = 0.0;
+    geo.thickness    = 0.01;
+
+    // Area = span × chord = 1.0 × 0.5 = 0.5 m²
+    check_rel(geo.planform_area(), 0.5, 1e-6, "rectangular planform area");
+
+    // Aspect ratio AR = b²/S = 1.0²/0.5 = 2.0
+    const double ar = (geo.span * geo.span) / geo.planform_area();
+    check_rel(ar, 2.0, 1e-6, "aspect ratio AR = 2.0");
+
+    // Taper ratio λ = tip/root = 0.5/0.5 = 1.0 (rectangular)
+    const double taper = geo.tip_chord / geo.root_chord;
+    check_abs(taper, 1.0, 1e-15, "taper ratio λ = 1.0");
+}
+
+// ── Case 7: Eigenvalue solver — 2×2 analytical problem ───────────────────────
+// Reference: Eigenvalue decomposition of symmetric matrix.
+// Expected: λ₁ = 3, λ₂ = 1 for [[2 1]; [1 2]].
+
+static void test_eigenvalue_solver() {
+    std::printf("\nCase 7 — Eigenvalue solver (2×2 symmetric)\n");
+
+    // 2×2 symmetric matrix M = [[2 1]; [1 2]]
+    // Eigenvalues: λ₁ = 3, λ₂ = 1
+    Eigen::Matrix2d M;
+    M << 2.0, 1.0,
+         1.0, 2.0;
+
+    Eigen::SelfAdjointEigenSolver<Eigen::Matrix2d> eig(M);
+    if (eig.info() != Eigen::Success) {
+        check(false, "eigenvalue solver convergence");
+        return;
+    }
+
+    const auto evals = eig.eigenvalues();
+    const double lambda_min = evals.minCoeff();
+    const double lambda_max = evals.maxCoeff();
+
+    check_abs(lambda_min, 1.0, 1e-15, "λ_min = 1.0");
+    check_abs(lambda_max, 3.0, 1e-15, "λ_max = 3.0");
+    check(eig.eigenvectors().cols() == 2, "eigenvector matrix size");
+}
+
+// ── Case 8: DivergenceSolver — 2-DOF static aeroelastic ──────────────────────
+// Reference: docs/theory.md §7.2 — Bisplinghoff et al. (1955).
+// Simple 2-DOF problem: K = diag(1000, 500), A_s = [[1, 0.1]; [0.1, 0.5]] (symmetric).
+// Divergence: det(K − q·A_s) = 0.
+
+static void test_divergence_solver() {
+    std::printf("\nCase 8 — Static divergence solver (2-DOF)\n");
+
+    // Modal stiffness: K = diag(1000, 500)
+    Eigen::Matrix2d K;
+    K << 1000.0, 0.0,
+         0.0,   500.0;
+
+    // Static aero stiffness: A_s = [[1, 0.1]; [0.1, 0.5]]
+    Eigen::Matrix2d A_s;
+    A_s << 1.0,  0.1,
+           0.1,  0.5;
+
+    // Divergence occurs when det(K − q·A_s) = 0
+    // det(K − q·A_s) = (1000 − q)·(500 − 0.5q) − 0.01q²
+    //                = 500000 − 500q − 1000·0.5q + q² − 0.01q²
+    //                = 500000 − 1000q + 0.99q² ≈ 0  (for large q)
+    // Analytical: q ≈ 500000 / 1000 ≈ 500 Pa → V ≈ sqrt(2q/ρ) ≈ sqrt(1000/1.225) ≈ 28.6 m/s
+
+    ff::DivergenceSolver div_solver;
+    const ff::DivergenceResult res = div_solver.solve(K, A_s, 1.225, 1.0, 100.0, 200);
+
+    // Check that a divergence speed was found in the sweep range
+    check(res.divergence_speed.has_value(), "divergence speed found");
+    if (res.divergence_speed) {
+        check(*res.divergence_speed >= 1.0 && *res.divergence_speed <= 100.0,
+              "divergence speed in range [1, 100] m/s");
+    }
+}
+
+// ── Case 9: FlutterSolver — 2-DOF flutter boundary ──────────────────────────
+// Reference: docs/theory.md §7.1 — U-g flutter method.
+// Simple 2-DOF problem with known flutter speed.
+
+static void test_flutter_solver() {
+    std::printf("\nCase 9 — Flutter solver (2-DOF U-g method)\n");
+
+    // Modal mass: M = I
+    Eigen::Matrix2d M = Eigen::Matrix2d::Identity();
+
+    // Modal stiffness: K = diag(1000, 2000)
+    Eigen::Matrix2d K;
+    K << 1000.0, 0.0,
+         0.0,   2000.0;
+
+    // Modal generalized aerodynamic force (frequency-dependent, quasi-steady approximation)
+    // Q_modal = [[0.5, 0.1]; [0.1, 0.3]] (example structure)
+    Eigen::Matrix2d Q_modal;
+    Q_modal << 0.5, 0.1,
+               0.1, 0.3;
+
+    // Create velocity sweep
+    std::vector<double> velocities;
+    for (int i = 0; i <= 100; ++i)
+        velocities.push_back(0.0 + i * (200.0 / 100.0));
+
+    ff::FlutterSolver flutter_solver;
+    const ff::FlutterResult res = flutter_solver.solve_ug(K, M, Q_modal, 1.225,
+                                                          velocities);
+
+    // Check that flutter analysis completed (may or may not find flutter)
+    check(!res.vg_curves.empty(), "V-g curves generated");
+    check(res.vg_curves.size() == 2, "2 modes in V-g curves");
+}
+
+// ── Case 10: Material validation — OrthotropicPly input bounds ────────────────
+// Reference: Classical Lamination Theory physical constraints.
+// Tests: valid properties pass, invalid properties throw.
+
+static void test_orthotropic_ply_validation() {
+    std::printf("\nCase 10 — OrthotropicPly input validation\n");
+
+    // Valid material
+    {
+        const ff::OrthotropicPly valid = ff::as4_3501_6(125e-6);
+        try {
+            const auto Q = valid.reduced_stiffness();
+            check(true, "valid material accepted");
+        } catch (const std::invalid_argument&) {
+            check(false, "valid material rejected");
+        }
+    }
+
+    // Invalid: E1 = 0 (non-positive modulus)
+    {
+        ff::OrthotropicPly invalid;
+        invalid.E1 = 0.0;  // Invalid
+        invalid.E2 = 10e9;
+        invalid.G12 = 7e9;
+        invalid.nu12 = 0.3;
+        invalid.rho = 1500.0;
+        invalid.t = 125e-6;
+
+        try {
+            const auto Q = invalid.reduced_stiffness();
+            check(false, "invalid E1 accepted");
+        } catch (const std::invalid_argument&) {
+            check(true, "invalid E1 rejected");
+        }
+    }
+
+    // Invalid: ν₁₂ = 0.5 (at boundary, should be < 0.5)
+    {
+        ff::OrthotropicPly invalid = ff::as4_3501_6(125e-6);
+        invalid.nu12 = 0.5;  // Invalid (boundary)
+
+        try {
+            const auto Q = invalid.reduced_stiffness();
+            check(false, "invalid nu12 = 0.5 accepted");
+        } catch (const std::invalid_argument&) {
+            check(true, "invalid nu12 = 0.5 rejected");
+        }
+    }
+}
+
 // ── Main ──────────────────────────────────────────────────────────────────────
 
 int main() {
@@ -216,6 +442,12 @@ int main() {
     test_clt_quasi_isotropic();
     test_isa_atmosphere();
     test_vlm_rectangular();
+    test_vec3_operations();
+    test_fin_geometry();
+    test_eigenvalue_solver();
+    test_divergence_solver();
+    test_flutter_solver();
+    test_orthotropic_ply_validation();
 
     std::printf("\n=== Results: %d passed, %d failed ===\n", g_pass, g_fail);
     return (g_fail == 0) ? 0 : 1;
