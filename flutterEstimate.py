@@ -73,8 +73,9 @@ if __name__ == "__main__":
     # Feed the optimized D66 value from inplaneG.py's output
     D66 = 330.0     
     
-    altitude_m = 1462.0   # Max-Q altitude
-    rocket_v_mps = 650.0  # Velocity at Max-Q
+    altitude_m = 1462.0   # Maximum dynamic pressure altitude
+    rocket_v_mps = 650.0  # Velocity at maximum dynamic pressure altitude 
+    ## CHECK. Q (dynamic pressure) IS STATED IN OPENROCKET. DATA MUST BE EXTRACTED FROM THERE.
     
     Vf_class, Vf_super, P_alt, a_alt = flutter_boundaries(cr_m, ct_m, s_m, t_m, D66, altitude_m, rocket_v_mps)
     
@@ -98,5 +99,6 @@ if __name__ == "__main__":
 #NACA Technical Note 4197, "Summary of Flutter Experiences as a Guide to the Preliminary Design of Lifting Surfaces on Missiles," Dennis J. Martin, 1958.
 
 #Ackeret, J. "Air Forces on Airfoils Moving Faster Than Sound" (NACA TM 317, 1925).
+
 
 #Bisplinghoff, Ashley, and Halfman, "Aeroelasticity" (1955).
