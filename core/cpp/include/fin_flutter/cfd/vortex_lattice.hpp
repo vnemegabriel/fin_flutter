@@ -153,26 +153,54 @@ public:
     ///
     /// AIC[i,j] = normal velocity at control point i due to unit Γ on panel j.
     /// Eq. 5.7 — Katz & Plotkin (2001) §12.3.
+    ///
+    /// @param panels Panel discretization.
+    /// @param assume_symmetric (optional) If true, exploit AIC symmetry for rectangular,
+    ///        symmetric wings (~2× speedup). Compute lower triangle, mirror to upper.
+    ///        Default false for safety (general planforms may not be symmetric).
     /// TODO: Prandtl-Glauert compressibility corrections deferred to Phase 2.
-    Eigen::MatrixXd build_aic(const std::vector<VLMPanel>& panels) const {
+    Eigen::MatrixXd build_aic(const std::vector<VLMPanel>& panels,
+                               bool assume_symmetric = false) const {
         const int n = static_cast<int>(panels.size());
         Eigen::MatrixXd AIC(n, n);
         const Vec3 wake{1.0, 0.0, 0.0}; // wake trailing downstream (+x)
 
-        for (int i = 0; i < n; ++i) {
-            const Vec3& cp = panels[i].control_pt;
-            const Vec3& ni = panels[i].normal;
+        if (assume_symmetric) {
+            // Compute lower triangle (including diagonal) and mirror to upper
+            for (int i = 0; i < n; ++i) {
+                const Vec3& cp = panels[i].control_pt;
+                const Vec3& ni = panels[i].normal;
 
-            for (int j = 0; j < n; ++j) {
-                const Vec3& A = panels[j].bound_a;
-                const Vec3& B = panels[j].bound_b;
+                for (int j = 0; j <= i; ++j) {
+                    const Vec3& A = panels[j].bound_a;
+                    const Vec3& B = panels[j].bound_b;
 
-                const Vec3 v_bound  = BiotSavart::finite_segment(cp, A, B, 1.0);
-                const Vec3 v_trail_a = BiotSavart::semi_infinite(cp, A,  1.0, wake);  // Same sign as bound/B trailing
-                const Vec3 v_trail_b = BiotSavart::semi_infinite(cp, B,  1.0, wake);
-                const Vec3 v_total  = v_bound + v_trail_a + v_trail_b;
+                    const Vec3 v_bound  = BiotSavart::finite_segment(cp, A, B, 1.0);
+                    const Vec3 v_trail_a = BiotSavart::semi_infinite(cp, A,  1.0, wake);
+                    const Vec3 v_trail_b = BiotSavart::semi_infinite(cp, B,  1.0, wake);
+                    const Vec3 v_total  = v_bound + v_trail_a + v_trail_b;
 
-                AIC(i, j) = ni.dot(v_total);
+                    AIC(i, j) = ni.dot(v_total);
+                    if (i != j) AIC(j, i) = AIC(i, j);  // Mirror for symmetry
+                }
+            }
+        } else {
+            // Full AIC matrix computation (general planforms)
+            for (int i = 0; i < n; ++i) {
+                const Vec3& cp = panels[i].control_pt;
+                const Vec3& ni = panels[i].normal;
+
+                for (int j = 0; j < n; ++j) {
+                    const Vec3& A = panels[j].bound_a;
+                    const Vec3& B = panels[j].bound_b;
+
+                    const Vec3 v_bound  = BiotSavart::finite_segment(cp, A, B, 1.0);
+                    const Vec3 v_trail_a = BiotSavart::semi_infinite(cp, A,  1.0, wake);
+                    const Vec3 v_trail_b = BiotSavart::semi_infinite(cp, B,  1.0, wake);
+                    const Vec3 v_total  = v_bound + v_trail_a + v_trail_b;
+
+                    AIC(i, j) = ni.dot(v_total);
+                }
             }
         }
         return AIC;
@@ -180,20 +208,22 @@ public:
 
 private:
     /// @brief z-component of total induced velocity at point P from all panels.
+    /// Optimized: accumulate z-component directly (reduce temporary Vec3 allocations).
     double induced_normal_velocity(const std::vector<VLMPanel>& panels,
                                    const std::vector<double>& gamma,
                                    const Vec3& P) const {
         const Vec3 wake{1.0, 0.0, 0.0};
-        Vec3 v{};
+        double v_z = 0.0;
         for (int j = 0; j < static_cast<int>(panels.size()); ++j) {
             const Vec3& A = panels[j].bound_a;
             const Vec3& B = panels[j].bound_b;
             const double g = gamma[j];
-            v = v + BiotSavart::finite_segment(P, A, B,  g)
-                  + BiotSavart::semi_infinite(P, A,  g, wake)  // Same sign as B trailing
-                  + BiotSavart::semi_infinite(P, B,  g, wake);
+            const Vec3 v_seg = BiotSavart::finite_segment(P, A, B,  g)
+                             + BiotSavart::semi_infinite(P, A,  g, wake)  // Same sign as B trailing
+                             + BiotSavart::semi_infinite(P, B,  g, wake);
+            v_z += v_seg.z;
         }
-        return v.z;
+        return v_z;
     }
 };
 
