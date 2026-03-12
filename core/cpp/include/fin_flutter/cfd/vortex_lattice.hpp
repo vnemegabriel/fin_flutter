@@ -162,7 +162,7 @@ public:
                 const Vec3& B = panels[j].bound_b;
 
                 const Vec3 v_bound  = BiotSavart::finite_segment(cp, A, B, 1.0);
-                const Vec3 v_trail_a = BiotSavart::semi_infinite(cp, A, -1.0, wake);
+                const Vec3 v_trail_a = BiotSavart::semi_infinite(cp, A,  1.0, wake);  // Same sign as bound/B trailing
                 const Vec3 v_trail_b = BiotSavart::semi_infinite(cp, B,  1.0, wake);
                 const Vec3 v_total  = v_bound + v_trail_a + v_trail_b;
 
@@ -184,7 +184,7 @@ private:
             const Vec3& B = panels[j].bound_b;
             const double g = gamma[j];
             v = v + BiotSavart::finite_segment(P, A, B,  g)
-                  + BiotSavart::semi_infinite(P, A, -g, wake)
+                  + BiotSavart::semi_infinite(P, A,  g, wake)  // Same sign as B trailing
                   + BiotSavart::semi_infinite(P, B,  g, wake);
         }
         return v.z;
