@@ -64,7 +64,7 @@ public:
         const int n  = nx * ny;
 
         const auto panels = build_panels(geometry, nx, ny);
-        const auto AIC    = build_aic(panels, condition.velocity);
+        const auto AIC    = build_aic(panels);
 
         // RHS: − (V∞ · n̂) for each panel — Eq. 5.8 (flow-tangency BC)
         Eigen::VectorXd rhs(n);
@@ -83,10 +83,10 @@ public:
         std::vector<double> gamma(n), panel_cl(n);
         double total_lift = 0.0;
 
+        const double rho_V = condition.density * condition.velocity;
         for (int i = 0; i < n; ++i) {
             gamma[i] = gamma_vec(i);
-            const double L  = condition.density * condition.velocity
-                              * gamma[i] * panels[i].span_width;
+            const double L  = rho_V * gamma[i] * panels[i].span_width;
             panel_cl[i] = (q * panels[i].area > 0) ? L / (q * panels[i].area) : 0.0;
             total_lift += L;
         }
@@ -147,8 +147,8 @@ public:
     ///
     /// AIC[i,j] = normal velocity at control point i due to unit Γ on panel j.
     /// Eq. 5.7 — Katz & Plotkin (2001) §12.3.
-    Eigen::MatrixXd build_aic(const std::vector<VLMPanel>& panels,
-                               double /*V_inf*/) const {
+    /// TODO: Prandtl-Glauert compressibility corrections deferred to Phase 2.
+    Eigen::MatrixXd build_aic(const std::vector<VLMPanel>& panels) const {
         const int n = static_cast<int>(panels.size());
         Eigen::MatrixXd AIC(n, n);
         const Vec3 wake{1.0, 0.0, 0.0}; // wake trailing downstream (+x)
