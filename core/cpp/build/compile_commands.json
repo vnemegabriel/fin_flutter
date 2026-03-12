@@ -1,8 +1,0 @@
-[
-{
-  "directory": "/home/user/fin_flutter/core/cpp/build/tests",
-  "command": "/usr/bin/c++  -I/home/user/fin_flutter/core/cpp/include -isystem /usr/include/eigen3 -O3 -DNDEBUG -std=c++17 -Wall -Wextra -O2 -o CMakeFiles/run_tests.dir/test_main.cpp.o -c /home/user/fin_flutter/core/cpp/tests/test_main.cpp",
-  "file": "/home/user/fin_flutter/core/cpp/tests/test_main.cpp",
-  "output": "tests/CMakeFiles/run_tests.dir/test_main.cpp.o"
-}
-]

@@ -1,0 +1,45 @@
+# Build artifacts
+build/
+cmake-build-*/
+*.o
+*.a
+*.so
+*.dylib
+*.exe
+
+# CMake
+CMakeCache.txt
+CMakeFiles/
+cmake_install.cmake
+Makefile
+CTestTestfile.cmake
+
+# IDE
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+
+# OS
+.DS_Store
+Thumbs.db
+*.tmp
+
+# Python
+__pycache__/
+*.pyc
+*.egg-info/
+dist/
+.pytest_cache/
+.coverage
+htmlcov/
+
+# Dependencies
+venv/
+env/
+node_modules/
+
+# Temporary
+*.bak
+*.orig
