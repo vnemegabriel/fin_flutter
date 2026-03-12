@@ -85,12 +85,7 @@ public:
     /// @param stack Ply stack ordered bottom to top.
     /// @return LaminateABD containing [A], [B], [D], total_thickness, area_weight.
     LaminateABD compute(const std::vector<LaminatePly>& stack) const {
-        LaminateABD result;
-        result.A = Matrix3d::Zero();
-        result.B = Matrix3d::Zero();
-        result.D = Matrix3d::Zero();
-        result.total_thickness = 0.0;
-        result.area_weight     = 0.0;
+        LaminateABD result;  // Default constructor initializes all to zero
 
         if (stack.empty()) return result;
 

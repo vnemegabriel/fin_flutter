@@ -171,7 +171,8 @@ static void test_vlm_rectangular() {
 
     ff::VortexLattice vlm;
     const double alpha_rad = 5.0 * M_PI / 180.0;
-    const auto result = vlm.solve(geo, cond, 8, 12, alpha_rad);
+    ff::VLMOptions opts{8, 12, alpha_rad};
+    const auto result = vlm.solve(geo, cond, opts);
 
     // CL should be positive and within ±10% of Prandtl analytical value 0.392
     check(result.CL > 0.0, "CL > 0");

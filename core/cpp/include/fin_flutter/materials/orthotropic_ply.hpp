@@ -6,6 +6,7 @@
 /// Reddy (2004) "Mechanics of Laminated Composite Plates and Shells", §1.3.
 
 #include <cmath>
+#include <stdexcept>
 #include <string>
 #include "../math/types.hpp"
 
@@ -45,7 +46,19 @@ struct OrthotropicPly {
     ///   Q₂₂ = E₂ / (1 − ν₁₂ν₂₁)
     ///   Q₁₂ = ν₁₂·E₂ / (1 − ν₁₂ν₂₁)
     ///   Q₆₆ = G₁₂
+    ///
+    /// @throws std::invalid_argument if material properties are outside physical bounds.
     Matrix3d reduced_stiffness() const {
+        // Input validation: ensure physical plausibility
+        if (E1 <= 0.0 || E2 <= 0.0 || G12 <= 0.0) {
+            throw std::invalid_argument(
+                "OrthotropicPly::reduced_stiffness: moduli must be positive (E1, E2, G12 > 0)");
+        }
+        if (nu12 < 0.0 || nu12 >= 0.5) {
+            throw std::invalid_argument(
+                "OrthotropicPly::reduced_stiffness: Poisson's ratio must be in [0, 0.5)");
+        }
+
         const double delta = 1.0 - nu12 * nu21();
         const double Q11 = E1  / delta;
         const double Q22 = E2  / delta;

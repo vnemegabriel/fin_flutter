@@ -42,25 +42,31 @@ struct VLMResult {
     std::vector<VLMPanel>   panels;    ///< Panel geometry.
 };
 
+/// @brief VLM solver options: discretization and future feature flags.
+/// Struct-based parameter aggregation allows extensible API (e.g. compressibility,
+/// drag model) without breaking existing code signatures.
+struct VLMOptions {
+    int    chordwise_panels = 4;              ///< Panels in chord direction.
+    int    spanwise_panels = 8;               ///< Panels in span direction.
+    double alpha_rad = 0.0;                   ///< Angle of attack [rad].
+    bool   apply_compressibility = false;     ///< TODO: Prandtl-Glauert correction (Phase 2).
+};
+
 /// @brief Vortex Lattice Method solver.
 class VortexLattice {
 public:
-    /// @brief Solve VLM for a trapezoidal fin.
+    /// @brief Solve VLM for a fin with given discretization and flow conditions.
     ///
-    /// @param geometry           Fin planform geometry.
-    /// @param condition          Flight condition (V∞, ρ).
-    /// @param chordwise_panels   Number of panels in chord direction n_x.
-    /// @param spanwise_panels    Number of panels in span  direction n_y.
-    /// @param alpha_rad          Angle of attack [rad].
+    /// @param geometry   Fin planform geometry.
+    /// @param condition  Flight condition (V∞, ρ).
+    /// @param opts       VLMOptions containing discretization and angle of attack.
     /// @return VLMResult with Γ distribution, lift, drag, AIC.
     VLMResult solve(const FinGeometry&     geometry,
                     const FlightCondition& condition,
-                    int    chordwise_panels,
-                    int    spanwise_panels,
-                    double alpha_rad) const
+                    const VLMOptions&      opts) const
     {
-        const int nx = chordwise_panels;
-        const int ny = spanwise_panels;
+        const int nx = opts.chordwise_panels;
+        const int ny = opts.spanwise_panels;
         const int n  = nx * ny;
 
         const auto panels = build_panels(geometry, nx, ny);
@@ -68,9 +74,9 @@ public:
 
         // RHS: − (V∞ · n̂) for each panel — Eq. 5.8 (flow-tangency BC)
         Eigen::VectorXd rhs(n);
-        const Vec3 v_inf{condition.velocity * std::cos(alpha_rad),
+        const Vec3 v_inf{condition.velocity * std::cos(opts.alpha_rad),
                          0.0,
-                         condition.velocity * std::sin(alpha_rad)};
+                         condition.velocity * std::sin(opts.alpha_rad)};
         for (int i = 0; i < n; ++i)
             rhs(i) = -panels[i].normal.dot(v_inf);
 
