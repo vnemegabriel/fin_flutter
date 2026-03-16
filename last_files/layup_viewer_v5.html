@@ -1,0 +1,1670 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>FalconLAUNCH VI — Composite Fin Viewer v5</title>
+<style>
+@import url('https://fonts.googleapis.com/css2?family=Share+Tech+Mono&family=Barlow:wght@300;400;500;600&display=swap');
+:root{
+  --bg:#080b10;--s1:#0d1119;--s2:#111722;--border:#1c2333;--border2:#263044;
+  --text:#b8c8dc;--dim:#48596e;--mid:#7a90a8;
+  --accent:#00e5ff;--accent2:#ff5533;--green:#33e8a0;--yellow:#ffd24d;--purple:#a87cff;
+  --mono:'Share Tech Mono',monospace;--sans:'Barlow',sans-serif;
+}
+*{box-sizing:border-box;margin:0;padding:0}
+html,body{height:100%;overflow:hidden}
+body{background:var(--bg);color:var(--text);font-family:var(--sans);font-size:13px;display:flex;flex-direction:column;height:100vh;}
+
+header{display:flex;align-items:center;gap:14px;padding:8px 16px;border-bottom:1px solid var(--border);background:var(--s1);flex-shrink:0;}
+.logo{font-family:var(--mono);font-size:11px;letter-spacing:.18em;text-transform:uppercase;color:var(--accent);}
+.sub{font-size:11px;color:var(--dim);}
+.tab-bar{display:flex;gap:2px;margin-left:auto;}
+.tab{padding:5px 12px;font-family:var(--mono);font-size:10px;letter-spacing:.1em;text-transform:uppercase;background:transparent;border:1px solid var(--border2);color:var(--mid);cursor:pointer;border-radius:2px;transition:all .15s;}
+.tab:hover{border-color:var(--accent);color:var(--accent);}
+.tab.active{background:rgba(0,229,255,.08);border-color:var(--accent);color:var(--accent);}
+.tab.opt{border-color:rgba(255,212,77,.3);color:var(--yellow);}
+.tab.opt.active{background:rgba(255,212,77,.08);border-color:var(--yellow);}
+.tab.scr{border-color:rgba(160,124,255,.3);color:var(--purple);}
+.tab.scr.active{background:rgba(160,124,255,.08);border-color:var(--purple);}
+
+.main{display:flex;flex:1;overflow:hidden;}
+.panel{display:flex;flex-direction:column;border-right:1px solid var(--border);overflow:hidden;}
+.panel:last-child{border-right:none;}
+.panel-hdr{padding:6px 12px;font-family:var(--mono);font-size:9px;letter-spacing:.18em;text-transform:uppercase;color:var(--dim);border-bottom:1px solid var(--border);background:var(--s1);flex-shrink:0;display:flex;justify-content:space-between;align-items:center;}
+.badge{background:rgba(0,229,255,.1);color:var(--accent);padding:1px 6px;border-radius:2px;font-size:9px;}
+.badge.y{background:rgba(255,212,77,.1);color:var(--yellow);}
+.badge.p{background:rgba(160,124,255,.1);color:var(--purple);}
+.panel-body{flex:1;overflow-y:auto;overflow-x:hidden;}
+
+.geo-panel{width:218px;}
+.geo-group{padding:10px 12px;border-bottom:1px solid var(--border);}
+.geo-group-title{font-family:var(--mono);font-size:9px;color:var(--dim);letter-spacing:.14em;text-transform:uppercase;margin-bottom:7px;}
+.geo-field{margin-bottom:6px;}
+.geo-field:last-child{margin-bottom:0;}
+.geo-label{font-size:10px;color:var(--mid);margin-bottom:2px;display:flex;justify-content:space-between;}
+.geo-label span{font-family:var(--mono);color:var(--accent);font-size:10px;}
+.geo-input{width:100%;background:var(--s2);border:1px solid var(--border2);color:var(--text);padding:4px 7px;font-family:var(--mono);font-size:11px;border-radius:2px;outline:none;transition:border-color .15s;}
+.geo-input:focus{border-color:var(--accent);}
+input[type=range].geo-input{padding:3px 0;accent-color:var(--accent);}
+.btn{width:100%;padding:5px;background:rgba(0,229,255,.07);border:1px solid rgba(0,229,255,.25);color:var(--accent);font-family:var(--mono);font-size:10px;letter-spacing:.1em;text-transform:uppercase;cursor:pointer;border-radius:2px;transition:all .15s;margin-bottom:4px;}
+.btn:last-child{margin-bottom:0;}
+.btn:hover{background:rgba(0,229,255,.14);}
+.btn.danger{background:rgba(255,85,51,.07);border-color:rgba(255,85,51,.25);color:var(--accent2);}
+.btn.danger:hover{background:rgba(255,85,51,.14);}
+.btn.ork{background:rgba(160,124,255,.07);border-color:rgba(160,124,255,.3);color:var(--purple);margin-bottom:6px;}
+.btn.ork:hover{background:rgba(160,124,255,.16);}
+.btn.opt{background:rgba(255,212,77,.07);border-color:rgba(255,212,77,.3);color:var(--yellow);}
+.btn.opt:hover{background:rgba(255,212,77,.14);}
+
+.ply-panel{width:270px;}
+.ply-list{padding:4px 0;}
+.ply-row{display:grid;grid-template-columns:22px 10px 74px 1fr 36px 22px;align-items:center;gap:4px;padding:4px 9px;cursor:pointer;border-left:2px solid transparent;transition:background .1s,border-color .1s;}
+.ply-row:hover{background:rgba(255,255,255,.025);}
+.ply-row.sel{background:rgba(0,229,255,.05);border-left-color:var(--accent);}
+.ply-idx{font-family:var(--mono);font-size:10px;color:var(--dim);text-align:right;}
+.ply-dot{width:8px;height:8px;border-radius:1px;flex-shrink:0;}
+.ply-fab{font-size:10px;color:var(--mid);overflow:hidden;text-overflow:ellipsis;white-space:nowrap;}
+.ply-ang{font-family:var(--mono);font-size:11px;font-weight:500;text-align:right;}
+.ply-t{font-family:var(--mono);font-size:9px;color:var(--dim);text-align:right;}
+.ply-del{background:none;border:none;color:var(--dim);cursor:pointer;font-size:14px;line-height:1;padding:0 2px;transition:color .1s;}
+.ply-del:hover{color:var(--accent2);}
+.add-bar{padding:8px 10px;border-top:1px solid var(--border);display:flex;flex-direction:column;gap:4px;background:var(--s1);flex-shrink:0;}
+.add-row{display:flex;gap:4px;}
+.add-row select,.add-row input{flex:1;background:var(--s2);border:1px solid var(--border2);color:var(--text);padding:4px 6px;font-family:var(--mono);font-size:11px;border-radius:2px;outline:none;}
+
+.ply-editor{width:230px;}
+.editor-body{padding:12px;}
+.ed-field{margin-bottom:10px;}
+.ed-label{font-size:10px;color:var(--mid);margin-bottom:3px;display:flex;justify-content:space-between;align-items:center;}
+.ed-label b{font-family:var(--mono);color:var(--accent);}
+.ed-inp{width:100%;background:var(--s2);border:1px solid var(--border2);color:var(--text);padding:4px 7px;font-family:var(--mono);font-size:12px;border-radius:2px;outline:none;}
+.ed-inp:focus{border-color:var(--accent);}
+input[type=range].ed-inp{padding:3px 0;accent-color:var(--accent);}
+.fabric-btns{display:grid;grid-template-columns:1fr 1fr;gap:5px;margin-bottom:10px;}
+.fab-btn{padding:6px 4px;border:1px solid var(--border2);background:var(--s2);color:var(--mid);font-family:var(--mono);font-size:10px;text-align:center;cursor:pointer;border-radius:2px;transition:all .15s;}
+.fab-btn.active-db{border-color:var(--accent);background:rgba(0,229,255,.1);color:var(--accent);}
+.fab-btn.active-ga{border-color:var(--green);background:rgba(51,232,160,.1);color:var(--green);}
+.prop-table{width:100%;border-collapse:collapse;}
+.prop-table td{padding:3px 0;font-family:var(--mono);font-size:10px;border-bottom:1px solid var(--border);}
+.prop-table td:first-child{color:var(--dim);}
+.prop-table td:last-child{text-align:right;}
+
+/* VIZ */
+.viz-panel{flex:1;display:grid;grid-template-rows:1fr 1fr;overflow:hidden;}
+.viz-block{display:flex;flex-direction:column;border-bottom:1px solid var(--border);overflow:hidden;}
+.viz-block:last-child{border-bottom:none;}
+.viz-hdr{padding:6px 14px;font-family:var(--mono);font-size:9px;letter-spacing:.14em;text-transform:uppercase;color:var(--dim);border-bottom:1px solid var(--border);background:var(--s1);flex-shrink:0;display:flex;justify-content:space-between;align-items:center;}
+.kpis{display:flex;gap:12px;}
+.kpi{display:flex;gap:4px;align-items:baseline;}
+.kpi-k{font-size:9px;color:var(--dim);}
+.kpi-v{font-family:var(--mono);font-size:11px;}
+.kpi-v.hi{color:var(--accent);}.kpi-v.ok{color:var(--green);}.kpi-v.warn{color:var(--yellow);}.kpi-v.bad{color:var(--accent2);}
+.viz-wrap{flex:1;overflow:hidden;position:relative;}
+canvas.mc{position:absolute;top:0;left:0;}
+
+/* OPTIMIZER PANEL */
+.opt-panel{display:none;flex:1;flex-direction:column;overflow:hidden;}
+.opt-panel.show{display:flex;}
+.opt-body{flex:1;overflow-y:auto;padding:14px;}
+.opt-section{margin-bottom:16px;}
+.opt-section h3{font-family:var(--mono);font-size:9px;letter-spacing:.16em;text-transform:uppercase;color:var(--yellow);margin-bottom:8px;}
+.opt-controls{display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-bottom:10px;}
+.opt-ctrl label{font-size:10px;color:var(--mid);display:block;margin-bottom:3px;}
+.opt-ctrl select,.opt-ctrl input{width:100%;background:var(--s2);border:1px solid var(--border2);color:var(--text);padding:4px 7px;font-family:var(--mono);font-size:11px;border-radius:2px;outline:none;}
+.opt-results{overflow-y:auto;max-height:calc(100vh - 280px);}
+.opt-row{display:grid;grid-template-columns:28px 1fr 72px 72px 72px 72px 80px;gap:4px;padding:5px 8px;border-bottom:1px solid var(--border);font-family:var(--mono);font-size:10px;align-items:center;cursor:pointer;transition:background .1s;}
+.opt-row:hover{background:rgba(255,255,255,.03);}
+.opt-row.best{background:rgba(255,212,77,.06);border-left:2px solid var(--yellow);}
+.opt-row.hdr{color:var(--dim);font-size:9px;letter-spacing:.1em;cursor:default;background:var(--s1);position:sticky;top:0;}
+.opt-row.hdr:hover{background:var(--s1);}
+.opt-seq{font-size:9px;color:var(--mid);overflow:hidden;text-overflow:ellipsis;white-space:nowrap;}
+.progress-bar{height:4px;background:var(--border);border-radius:2px;margin-bottom:10px;overflow:hidden;}
+.progress-fill{height:100%;background:var(--yellow);width:0%;transition:width .1s;}
+
+/* SCRIPT MANAGER */
+.scr-panel{display:none;flex:1;flex-direction:column;overflow:hidden;}
+.scr-panel.show{display:flex;}
+.scr-body{flex:1;display:flex;overflow:hidden;}
+.scr-list{width:200px;border-right:1px solid var(--border);overflow-y:auto;padding:8px 0;}
+.scr-item{padding:7px 12px;cursor:pointer;border-left:2px solid transparent;transition:background .1s;}
+.scr-item:hover{background:rgba(255,255,255,.025);}
+.scr-item.sel{background:rgba(160,124,255,.05);border-left-color:var(--purple);}
+.scr-item-name{font-family:var(--mono);font-size:10px;color:var(--text);}
+.scr-item-desc{font-size:10px;color:var(--dim);margin-top:2px;}
+.scr-code{flex:1;overflow:auto;padding:14px;background:var(--s1);}
+.scr-code pre{font-family:var(--mono);font-size:11px;line-height:1.6;color:var(--text);white-space:pre-wrap;word-break:break-all;}
+.scr-code .kw{color:var(--accent);}
+.scr-code .num{color:var(--yellow);}
+.scr-code .cm{color:var(--dim);}
+.scr-code .fn{color:var(--green);}
+.scr-code .str{color:var(--accent2);}
+
+/* ork info */
+.ork-info{padding:6px 12px;background:rgba(160,124,255,.08);border-bottom:1px solid rgba(160,124,255,.2);font-size:10px;color:var(--purple);display:none;line-height:1.4;}
+.ork-info.show{display:block;}
+
+::-webkit-scrollbar{width:3px;height:3px;}::-webkit-scrollbar-track{background:transparent;}::-webkit-scrollbar-thumb{background:var(--border2);border-radius:2px;}
+</style>
+</head>
+<body>
+
+<header>
+  <div class="logo">Composite Layup Visualizer</div>
+  <div class="sub">FalconLAUNCH VI — Fin Aeroelastic Design</div>
+  <div class="tab-bar">
+    <button class="tab active" onclick="setView('split')"   id="tab_split">Split</button>
+    <button class="tab"        onclick="setView('xsec')"    id="tab_xsec">X-Section</button>
+    <button class="tab"        onclick="setView('fin')"     id="tab_fin">Fin View</button>
+    <button class="tab"        onclick="setView('polar')"   id="tab_polar">Polar</button>
+    <button class="tab opt"    onclick="setView('opt')"     id="tab_opt">⚡ Optimizer</button>
+    <button class="tab scr"    onclick="setView('scr')"     id="tab_scr">⎔ Scripts</button>
+    <button class="tab scr"    onclick="setView('flutter')" id="tab_flutter">🌊 Flutter</button>
+  </div>
+</header>
+
+<div class="main">
+
+<!-- ── GEOMETRY ── -->
+<div class="panel geo-panel">
+  <div class="panel-hdr">Geometry</div>
+  <div class="panel-body">
+    <div class="geo-group">
+      <div class="geo-group-title">OpenRocket Import</div>
+      <input type="file" id="orkFile" accept=".ork" style="display:none" onchange="loadOrk(this)">
+      <button class="btn ork" onclick="document.getElementById('orkFile').click()">⬆ Load .ork File</button>
+      <div class="ork-info" id="orkInfo"></div>
+    </div>
+    <div class="geo-group">
+      <div class="geo-group-title">Fin Dimensions</div>
+      <div class="geo-field"><div class="geo-label">Root chord<span id="lbl_cr">300 mm</span></div>
+        <input class="geo-input" type="range" id="cr" min="50" max="600" step="5" value="300" oninput="onGeo()"></div>
+      <div class="geo-field"><div class="geo-label">Tip chord<span id="lbl_ct">150 mm</span></div>
+        <input class="geo-input" type="range" id="ct" min="0" max="500" step="5" value="150" oninput="onGeo()"></div>
+      <div class="geo-field"><div class="geo-label">Span<span id="lbl_s">160 mm</span></div>
+        <input class="geo-input" type="range" id="s" min="30" max="500" step="5" value="160" oninput="onGeo()"></div>
+      <div class="geo-field"><div class="geo-label">Sweep Λ<span id="lbl_sw">57.4°</span></div>
+        <input class="geo-input" type="range" id="sw" min="0" max="85" step="0.5" value="57.4" oninput="onGeo()"></div>
+    </div>
+    <div class="geo-group">
+      <div class="geo-group-title">Rocket Body</div>
+      <div class="geo-field"><div class="geo-label">Body diameter<span id="lbl_bd">76 mm</span></div>
+        <input class="geo-input" type="range" id="bd" min="20" max="200" step="2" value="76" oninput="onGeo()"></div>
+      <div class="geo-field"><div class="geo-label">Cant angle<span id="lbl_cant">0.0°</span></div>
+        <input class="geo-input" type="range" id="cant" min="-6" max="6" step="0.5" value="0" oninput="onGeo()"></div>
+    </div>
+    <div class="geo-group">
+      <div class="geo-group-title">β Laminate Offset</div>
+      <div style="font-size:10px;color:var(--mid);margin-bottom:6px;line-height:1.5">
+        Rotates ALL plies from chord axis.<br>+β → toward LE (stabilising for aft-swept fin).
+      </div>
+      <div class="geo-field"><div class="geo-label">β offset<span id="lbl_beta">+0°</span></div>
+        <input class="geo-input" type="range" id="beta" min="-60" max="60" step="1" value="0" oninput="onBeta()">
+      </div>
+    </div>
+    <div class="geo-group">
+      <div class="geo-group-title">Presets</div>
+      <select class="geo-input" id="presetSel" onchange="applyPreset()" style="margin-bottom:7px">
+        <option value="ar1_std">AR1 Standard β=0°</option>
+        <option value="ar1_tail">AR1 Tailored β=+20°</option>
+        <option value="ar1_neg">AR1 β=−20° (washin)</option>
+        <option value="all45">All ±45° NCF</option>
+        <option value="all090">All 0/90 Woven</option>
+      </select>
+    </div>
+    <div class="geo-group">
+      <div class="geo-group-title">ABD Matrix</div>
+      <table class="prop-table" id="abdTbl"></table>
+    </div>
+  </div>
+</div>
+
+<!-- ── PLY LIST ── -->
+<div class="panel ply-panel">
+  <div class="panel-hdr">Ply Schedule<span class="badge" id="plyCnt">22</span></div>
+  <div class="panel-body"><div class="ply-list" id="plyList"></div></div>
+  <div class="add-bar">
+    <div class="add-row">
+      <select id="addFab"><option value="DB300">DB300 ±45° NCF</option><option value="GA90R">GA90R 0/90 Wov</option></select>
+      <input type="number" id="addAng" value="45" min="-90" max="90" step="1" style="width:60px">
+    </div>
+    <div class="add-row">
+      <button class="btn" style="margin:0" onclick="addPly('top')">+ Top</button>
+      <button class="btn" style="margin:0" onclick="addPly('bot')">+ Bot</button>
+      <button class="btn" style="margin:0" onclick="addPly('mid')">± Mir</button>
+    </div>
+  </div>
+</div>
+
+<!-- ── PLY EDITOR ── -->
+<div class="panel ply-editor">
+  <div class="panel-hdr">Ply Editor<span class="badge" id="selLbl">–</span></div>
+  <div class="panel-body"><div class="editor-body" id="edBody"><div style="color:var(--dim);font-size:11px">Select a ply</div></div></div>
+</div>
+
+<!-- ── VISUALIZATIONS ── -->
+<div class="panel viz-panel" id="vizPanel">
+  <div class="viz-block" id="topBlock">
+    <div class="viz-hdr"><span id="topTitle">Cross-Section</span><div class="kpis" id="topKpis"></div></div>
+    <div class="viz-wrap" id="topWrap"><canvas class="mc" id="topCvs"></canvas></div>
+  </div>
+  <div class="viz-block" id="botBlock">
+    <div class="viz-hdr"><span id="botTitle">Fin Planform</span><div class="kpis" id="botKpis"></div></div>
+    <div class="viz-wrap" id="botWrap"><canvas class="mc" id="botCvs"></canvas></div>
+  </div>
+</div>
+
+<!-- ── OPTIMIZER ── -->
+<div class="panel opt-panel" id="optPanel">
+  <div class="panel-hdr">⚡ Stacking Sequence Optimizer<span class="badge y" id="optBadge">idle</span></div>
+  <div class="opt-body">
+    <div class="opt-section">
+      <h3>Optimization Target</h3>
+      <div class="opt-controls">
+        <div class="opt-ctrl"><label>Objective</label>
+          <select id="optObj">
+            <option value="D66">Maximize D66 (flutter resistance)</option>
+            <option value="D11">Maximize D11 (bending stiffness)</option>
+            <option value="balanced">Maximize D66+D11 balanced</option>
+            <option value="minD16">Minimize |D16| (zero coupling)</option>
+          </select>
+        </div>
+        <div class="opt-ctrl"><label>Architecture</label>
+          <select id="optArch">
+            <option value="half_ar1">AR1 base (8 DB + 10 GA)</option>
+            <option value="more_db">More ±45 (12 DB + 6 GA)</option>
+            <option value="more_ga">More 0/90 (6 DB + 12 GA)</option>
+            <option value="equal">Equal mix (9 DB + 9 GA)</option>
+          </select>
+        </div>
+        <div class="opt-ctrl"><label>β sweep range</label>
+          <select id="optBeta">
+            <option value="none">Fixed β=0°</option>
+            <option value="pos">β = 0° to +45°</option>
+            <option value="neg">β = 0° to −45°</option>
+            <option value="full">β = −45° to +45°</option>
+          </select>
+        </div>
+        <div class="opt-ctrl"><label>Thickness target</label>
+          <select id="optThick">
+            <option value="any">Any</option>
+            <option value="6mm">≤ 6.0 mm</option>
+            <option value="5mm">≤ 5.5 mm</option>
+          </select>
+        </div>
+      </div>
+      <div class="progress-bar"><div class="progress-fill" id="optProg"></div></div>
+      <button class="btn opt" onclick="runOptimizer()">⚡ Run Optimizer</button>
+    </div>
+    <div class="opt-section">
+      <h3>Results <span id="optCount" style="color:var(--dim)"></span></h3>
+      <div class="opt-results">
+        <div class="opt-row hdr">
+          <div>#</div><div>Sequence (half)</div>
+          <div>D66 N·m</div><div>D11 N·m</div>
+          <div>D16 N·m</div><div>t mm</div><div>β</div>
+        </div>
+        <div id="optRows"></div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- ── SCRIPT MANAGER ── -->
+<div class="panel scr-panel" id="scrPanel">
+  <div class="panel-hdr">⎔ Script Manager — Physics Source<span class="badge p" id="scrDlBadge">↓ Download .py</span></div>
+  <div class="scr-body">
+    <div class="scr-list" id="scrList"></div>
+    <div class="scr-code" id="scrCode">
+      <div style="display:flex;gap:6px;padding:6px 8px;border-bottom:1px solid var(--border);flex-shrink:0;background:var(--s1)">
+        <button class="btn" style="margin:0;padding:3px 10px;font-size:10px" onclick="downloadScript()">↓ Download .py</button>
+        <span id="scrModName" style="font-family:var(--mono);font-size:10px;color:var(--mid);line-height:1;align-self:center">—</span>
+      </div>
+      <pre id="scrPre" style="flex:1;overflow:auto">Select a module</pre>
+    </div>
+  </div>
+</div>
+
+
+<!-- ── FLUTTER ANALYSIS ── -->
+<div class="panel opt-panel" id="flutterPanel" style="display:none">
+  <div class="panel-hdr">🌊 Flutter Analysis — NACA TN 4197 + Ackeret<span class="badge y" id="fsfBadge">FSF —</span></div>
+  <div class="opt-body">
+    <div class="opt-section">
+      <h3>Flight Condition (max-q)</h3>
+      <div class="opt-controls">
+        <div class="opt-ctrl"><label>Altitude [m]</label>
+          <input type="number" id="fAlt" value="1462" step="50" style="width:90px;background:var(--s2);border:1px solid var(--border2);color:var(--text);padding:4px 7px;font-family:var(--mono);font-size:11px;border-radius:2px"></div>
+        <div class="opt-ctrl"><label>Mach number</label>
+          <input type="number" id="fMach" value="1.942" step="0.05" style="width:90px;background:var(--s2);border:1px solid var(--border2);color:var(--text);padding:4px 7px;font-family:var(--mono);font-size:11px;border-radius:2px"></div>
+        <div class="opt-ctrl"><label>FSF required</label>
+          <input type="number" id="fFSF" value="1.50" step="0.05" style="width:90px;background:var(--s2);border:1px solid var(--border2);color:var(--text);padding:4px 7px;font-family:var(--mono);font-size:11px;border-radius:2px"></div>
+      </div>
+      <button class="btn opt" onclick="runFlutter()" style="max-width:200px">⚡ Compute Flutter</button>
+    </div>
+    <div class="opt-section">
+      <h3>Results</h3>
+      <div id="flutterResult" style="font-family:var(--mono);font-size:11px;line-height:1.8;color:var(--text)">Press "Compute Flutter" to run analysis.</div>
+    </div>
+    <div class="opt-section">
+      <h3>Altitude Sweep (constant Mach)</h3>
+      <div class="opt-results">
+        <div class="opt-row hdr" style="grid-template-columns:60px 70px 70px 70px 80px 80px 60px 60px">
+          <div>h [m]</div><div>ρ [kg/m³]</div><div>a [m/s]</div><div>Vr [m/s]</div>
+          <div>Vf_sub [m/s]</div><div>Vf [m/s]</div><div>FSF</div><div>Status</div>
+        </div>
+        <div id="flutterRows"></div>
+      </div>
+    </div>
+  </div>
+</div>
+
+</div><!-- .main -->
+
+<!-- Embedded ZIP reader — no CDN dependency (v5 fix) --><script>
+// Embedded ZIP reader — replaces CDN JSZip dependency (v5 fix)
+// Uses browser-native DecompressionStream for deflate.
+// Handles local file format, data descriptors (bit 3), stored & deflated entries.
+const JSZip = {
+  loadAsync: async function(buf) {
+    const u8 = new Uint8Array(buf);
+    const files = {};
+    let i = 0;
+    while (i < u8.length - 4) {
+      // Local file header signature: 0x04034b50
+      if (u8[i]!==0x50||u8[i+1]!==0x4b||u8[i+2]!==0x03||u8[i+3]!==0x04) { i++; continue; }
+      const flags      = u8[i+6] | (u8[i+7]<<8);
+      const comp       = u8[i+8] | (u8[i+9]<<8);
+      const compSize   = u8[i+18]|(u8[i+19]<<8)|(u8[i+20]<<16)|(u8[i+21]<<24);
+      const fnLen      = u8[i+26]|(u8[i+27]<<8);
+      const extraLen   = u8[i+28]|(u8[i+29]<<8);
+      const fnBytes    = u8.slice(i+30, i+30+fnLen);
+      const fname      = new TextDecoder().decode(fnBytes);
+      const dataStart  = i + 30 + fnLen + extraLen;
+      // If data descriptor (bit 3 set), compSize may be 0 — scan for next PK header
+      let dataEnd;
+      if ((flags & 0x08) && compSize === 0) {
+        // Find next local file header or central directory
+        dataEnd = dataStart;
+        while (dataEnd < u8.length - 4) {
+          if ((u8[dataEnd]===0x50&&u8[dataEnd+1]===0x4b&&u8[dataEnd+2]===0x03&&u8[dataEnd+3]===0x04) ||
+              (u8[dataEnd]===0x50&&u8[dataEnd+1]===0x4b&&u8[dataEnd+2]===0x01&&u8[dataEnd+3]===0x02)) break;
+          dataEnd++;
+        }
+        // Back up over data descriptor (16 bytes: sig+crc+csz+usz, or 12 without sig)
+        if (dataEnd >= 16 &&
+            u8[dataEnd-16]===0x50&&u8[dataEnd-15]===0x4b&&u8[dataEnd-14]===0x07&&u8[dataEnd-13]===0x08)
+          dataEnd -= 16;
+        else if (dataEnd >= 12) dataEnd -= 12;
+      } else {
+        dataEnd = dataStart + compSize;
+      }
+      const compData = u8.slice(dataStart, dataEnd);
+      files[fname] = { comp, compData };
+      i = dataEnd;
+    }
+
+    const makeEntry = (comp, compData) => ({
+      async: async (type) => {
+        let raw;
+        if (comp === 0) {        // Stored — no compression
+          raw = compData;
+        } else if (comp === 8) { // Deflated — use DecompressionStream
+          const ds = new DecompressionStream('deflate-raw');
+          const writer = ds.writable.getWriter();
+          writer.write(compData); writer.close();
+          const chunks = [];
+          const reader = ds.readable.getReader();
+          while (true) {
+            const {done, value} = await reader.read();
+            if (done) break;
+            chunks.push(value);
+          }
+          const total = chunks.reduce((s,c)=>s+c.length,0);
+          raw = new Uint8Array(total);
+          let off=0; for (const c of chunks) { raw.set(c,off); off+=c.length; }
+        } else {
+          throw new Error('Unsupported ZIP compression method: '+comp);
+        }
+        if (type==='string') return new TextDecoder('utf-8').decode(raw);
+        return raw;
+      }
+    });
+
+    return {
+      file: (pattern) => {
+        const keys = Object.keys(files);
+        if (pattern instanceof RegExp) {
+          const matches = keys.filter(k=>pattern.test(k));
+          return matches.map(k=>makeEntry(files[k].comp, files[k].compData));
+        }
+        if (files[pattern]) return makeEntry(files[pattern].comp, files[pattern].compData);
+        return null;
+      }
+    };
+  }
+};
+</script>
+<script>
+// =========================================================================
+// PHYSICS MODULES  (also displayed in Script Manager)
+// =========================================================================
+
+const MODULES = {};
+
+MODULES['material_db'] = {
+  name: 'Material Database',
+  desc: 'Fiber & matrix constants, Halpin-Tsai micromechanics',
+  src: `// ── Fiber: T700 carbon, 12K ──────────────────────────────────
+const Ef1  = 230e9;  // Longitudinal modulus [Pa]
+const Ef2  = 15e9;   // Transverse modulus [Pa]
+const Gf12 = 27e9;   // Shear modulus [Pa]
+const nuf  = 0.20;   // Poisson ratio
+
+// ── Matrix: Epoxy (LY1564 class) ─────────────────────────────
+const Em   = 3.5e9;
+const num_ = 0.35;
+const Gm   = Em / (2 * (1 + num_));
+
+// ── Process: Vf = 0.50, rho_fiber = 1800 kg/m³ ───────────────
+const Vf    = 0.50;
+const rho_f = 1800;
+
+// ── Halpin-Tsai ───────────────────────────────────────────────
+// Transverse/shear moduli (matrix-dominated):
+//   E2 = Em * (1 + ξ·η·Vf) / (1 − η·Vf)
+//   η  = (Ep/Em − 1) / (Ep/Em + ξ)
+//   ξ  = 2 (elliptic fibers, E2)
+//   ξ  = 1 (circular fibers, G12)
+function HT(Ep, Em, Vf, xi) {
+  const eta = ((Ep/Em) - 1) / ((Ep/Em) + xi);
+  return Em * (1 + xi*eta*Vf) / (1 - eta*Vf);
+}
+
+// ── UD Building Block ─────────────────────────────────────────
+const E1_ud   = Ef1*Vf + Em*(1-Vf);   // ROM (fiber-dominated)
+const nu12_ud = nuf*Vf + num_*(1-Vf); // ROM
+const E2_ud   = HT(Ef2,  Em, Vf, 2);  // H-T
+const G12_ud  = HT(Gf12, Gm, Vf, 1);  // H-T
+
+// ── CARBONODB300: ±45° NCF biaxial, FAW=300 g/m² ─────────────
+// Non-crimp fabric. Each +45 and -45 ply entered separately.
+// Ply-level props = UD props; rotation by CLPT at stack time.
+// t_single = (FAW/2) / (Vf × ρ_f) = 0.1667 mm
+const t_DB = (0.300/2) / (Vf * rho_f);   // 0.1667 mm per ply
+
+// ── CARBONOGA90R: Woven 0/90, FAW=302 g/m², 12K ──────────────
+// Balanced woven: E1=E2. One ply = one stack entry at 0°.
+// Crimp knockdown kc=0.92 on E1,E2 only (not G12).
+// t_ply = FAW / (Vf × ρ_f) = 0.3356 mm
+const kc   = 0.92;
+const t_GA = 0.302 / (Vf * rho_f);       // 0.3356 mm per ply
+const E1_GA  = 0.5*(E1_ud + E2_ud) * kc; // 57.02 GPa
+const G12_GA = HT(Gf12, Gm, Vf, 1);`
+};
+
+MODULES['clpt'] = {
+  name: 'CLPT — ABD Matrix',
+  desc: 'Classical Laminated Plate Theory, full ABD integration',
+  src: `// ── Reduced stiffness matrix Q (principal axes) ──────────────
+function Q_matrix(E1, E2, G12, nu12) {
+  const nu21 = nu12 * E2 / E1;
+  const D    = 1 - nu12 * nu21;
+  return [E1/D, E2/D, nu12*E2/D, G12];  // [Q11, Q22, Q12, Q66]
+}
+
+// ── Transformed Q̄ at angle θ (deg) ───────────────────────────
+// Standard CLPT rotation: fibers at θ from x-axis (chord).
+// All six independent terms including coupling Q̄16, Q̄26.
+function transformQ(Q11, Q22, Q12, Q66, theta_deg) {
+  const a  = theta_deg * Math.PI / 180;
+  const m  = Math.cos(a), n = Math.sin(a);
+  const m2 = m*m, n2 = n*n;
+  return {
+    q11: Q11*m2**2 + 2*(Q12+2*Q66)*n2*m2 + Q22*n2**2,
+    q22: Q11*n2**2 + 2*(Q12+2*Q66)*n2*m2 + Q22*m2**2,
+    q12: (Q11+Q22-4*Q66)*n2*m2 + Q12*(m2**2+n2**2),
+    q66: (Q11+Q22-2*Q12-2*Q66)*n2*m2 + Q66*(n2**2+m2**2),
+    q16: (Q11-Q12-2*Q66)*m2*m*n - (Q22-Q12-2*Q66)*n2*m*n,
+    q26: (Q11-Q12-2*Q66)*n2*m*n - (Q22-Q12-2*Q66)*m2*m*n
+  };
+}
+
+// ── Build full ABD matrix ─────────────────────────────────────
+// stack: array of {angle[deg], e1,e2,g12,nu12, t[m]}
+// A_ij = ∫ Q̄_ij dz         (extensional stiffness)
+// D_ij = ∫ Q̄_ij z² dz      (bending stiffness)
+// B_ij = ∫ Q̄_ij z dz  = 0  (for symmetric laminates)
+function buildABD(stack) {
+  const t_tot = stack.reduce((s,p) => s+p.t, 0);
+  let z = -t_tot/2;
+  let A11=0,A22=0,A12=0,A66=0,A16=0,A26=0;
+  let D11=0,D22=0,D12=0,D66=0,D16=0,D26=0;
+
+  for (const p of stack) {
+    const [q11,q22,q12,q66] = Q_matrix(p.e1,p.e2,p.g12,p.nu12);
+    const qb = transformQ(q11,q22,q12,q66, p.angle);
+    const z0=z, z1=z+p.t, dz=p.t, dz3=(z1**3-z0**3)/3;
+    A11+=qb.q11*dz; A22+=qb.q22*dz; A12+=qb.q12*dz;
+    A66+=qb.q66*dz; A16+=qb.q16*dz; A26+=qb.q26*dz;
+    D11+=qb.q11*dz3; D22+=qb.q22*dz3; D12+=qb.q12*dz3;
+    D66+=qb.q66*dz3; D16+=qb.q16*dz3; D26+=qb.q26*dz3;
+    z = z1;
+  }
+  return {
+    A11,A22,A12,A66,A16,D11,D22,D12,D66,D16,D26,
+    Gxy:  A66/t_tot,           // In-plane shear modulus [Pa]
+    Geff: 12*D66/t_tot**3,     // Bending-equiv. shear modulus [Pa]
+    t_tot
+  };
+}`
+};
+
+MODULES['beta_tailoring'] = {
+  name: 'β Aeroelastic Tailoring',
+  desc: 'Offset angle, D16 bend-twist coupling, washout/washin',
+  src: `// ── Global laminate offset angle β ───────────────────────────
+// β rotates ALL fiber angles simultaneously from the chord axis.
+// Convention: β > 0 → counterclockwise (toward leading edge).
+//
+// For this laminate (DB300 ±45 + GA90R 0/90):
+//   Both fabrics have 90° rotational Q̄ symmetry, so:
+//   D11(β) = D11(β+90°)  — stiffness is β-invariant
+//   D66(β) = D66(β+90°)  — stiffness is β-invariant
+//
+// β ONLY affects D16 (bend-twist coupling):
+//   β=0°:  D16=0 (balanced+symmetric baseline)
+//   β≈30°: |D16| maximum
+//   β=45°: D16=0 again (symmetry zero-crossing)
+//   β=57°: D16 reverses sign (past zero-crossing) → destabilising
+//
+// STABILISING CONDITION (aft-swept fin, EA aft of AC):
+//   β = +20° → D16 < 0 → trailing-edge-UP twist under tip bending
+//             → AoA reduced = WASHOUT = stabilising against flutter
+//   β = −20° → D16 > 0 → WASHIN = destabilising
+
+function makeBetaStack(halfDesc, beta) {
+  // Top half: angles = nominal + β
+  const top = halfDesc.map(([fab, ang]) =>
+    makePly(fab==='W'?'GA90R':'DB300', ang + beta)
+  );
+  // Bottom half: reversed, ±45 angles negated (ensures D16=0 at β=0)
+  // then β applied. This guarantees symmetric+balanced at all β.
+  const bot = [...halfDesc].reverse().map(([fab, ang]) => {
+    const flipped = fab==='B' ? -ang : ang;
+    return makePly(fab==='W'?'GA90R':'DB300', flipped + beta);
+  });
+  return [...top, ...bot];
+}
+
+// ── D16 sign convention ──────────────────────────────────────
+// In CLPT with x along chord, y along span:
+//   D16 > 0 → positive bending → trailing edge DOWN → WASHIN
+//   D16 < 0 → positive bending → trailing edge UP  → WASHOUT
+//
+// β = +20° gives D16 ≈ −4.53 N·m → WASHOUT → STABILISING ✓
+// β = −20° gives D16 ≈ +4.53 N·m → WASHIN  → DESTABILISING ✗`
+};
+
+MODULES['flutter'] = {
+  name: 'Flutter Boundary (NACA TN 4197)',
+  desc: 'Subsonic + supersonic flutter velocity estimation',
+  src: `// ── ISA Standard Atmosphere (troposphere) ───────────────────
+function ISA(alt_m) {
+  const T0=288.15, P0=101325, L=0.0065, R=287.05, g=9.80665, γ=1.4;
+  const T   = T0 - L*alt_m;
+  const P   = P0 * (1 - L*alt_m/T0)**(g/(R*L));
+  const rho = P / (R*T);
+  const a   = Math.sqrt(γ*R*T);
+  return {T, P, rho, a};
+}
+
+// ── NACA TN 4197 Flutter Velocity (Martin, 1958) ─────────────
+// True SI form. The coefficient 2.6734 = 39.3/14.7 from NACA 4197.
+// G_eff = 12·D66 / t³   [Pa]
+// V_f/a = sqrt(G_eff / [(2.6734·AR³/(AR+2)·(t/c)³) · P])
+function flutterNACA4197(D66, t_m, cr_m, ct_m, s_m, alt_m) {
+  const {P, a} = ISA(alt_m);
+  const AR       = 2*s_m / (cr_m + ct_m);
+  const t_ratio  = t_m / cr_m;
+  const G_eff    = 12*D66 / t_m**3;
+  const denom    = 2.6734 * AR**3 * P / ((AR+2) * t_ratio**3);
+  const Vf       = a * Math.sqrt(G_eff / denom);
+  return {Vf, G_eff, AR, t_ratio, P, a};
+}
+
+// ── Sweep correction (Collar & Tickle, 1954) ─────────────────
+// High sweep reduces effective aerodynamic loading:
+//   V_f_swept = V_f / sqrt(cos Λ)
+function sweepCorrection(Vf, sweep_deg) {
+  return Vf / Math.sqrt(Math.cos(sweep_deg*Math.PI/180));
+}
+
+// ── Supersonic compressible scaling (Ackeret + BAH) ──────────
+// Lift slope: subsonic C_Lα ≈ 2π, supersonic C_Lα = 4/√(M²-1)
+// AC shift: 0.25c → ~0.40c supersonic
+// V_f ∝ 1/√(C_Lα · e), e = |EA-AC| moment arm
+// scale = sqrt[(C_Lα_sub · e_sub) / (C_Lα_super · e_super)]
+function supersonicScale(M) {
+  if (M <= 1.05) return 1.0;  // transonic: conservative
+  const CLa_sub   = 2*Math.PI;
+  const CLa_super = 4/Math.sqrt(M**2-1);
+  const e_sub=0.25, e_super=0.10;
+  return Math.sqrt((CLa_sub*e_sub)/(CLa_super*e_super));
+}
+
+// ── Flutter Safety Factor ────────────────────────────────────
+// AIAA S-080 / MIL-A-8870 requirement: FSF = V_flutter/V_rocket ≥ 1.5
+// References:
+//   NACA TN 4197 (Martin, 1958)
+//   Ackeret, NACA TM 317 (1925)
+//   Bisplinghoff, Ashley & Halfman "Aeroelasticity" (1955)
+//   Collar & Tickle (1954) — sweep correction`
+};
+
+MODULES['optimizer'] = {
+  name: 'Stacking Optimizer',
+  desc: 'Permutation search over ply sequences',
+  src: `// ── Stacking Sequence Optimizer ─────────────────────────────
+// Generates candidate symmetric half-stacks by varying:
+//   1. Ratio of DB300 (±45) to GA90R (0/90) plies
+//   2. Stacking order (outer/mid/inner placement of each fabric)
+//   3. Global β offset angle
+//
+// For each candidate:
+//   - Build full symmetric laminate via makeBetaStack()
+//   - Compute ABD matrix via buildABD()
+//   - Score by chosen objective function
+//   - Filter by thickness constraint
+//   - Sort and return top-N results
+//
+// Objective functions:
+//   D66 only:    score = D66
+//   D11 only:    score = D11
+//   Balanced:    score = 0.5*D66/D66_ref + 0.5*D11/D11_ref
+//   Min |D16|:   score = -|D16|   (higher = less coupling)
+//
+// Key insight: outer ±45 plies maximise D66 via z³ lever arm.
+// Putting DB300 at the surface and GA90R in the core is always
+// better for D66. Conversely, outer GA90R maximises D11.
+// The optimizer finds non-obvious intermediate arrangements.
+//
+// Complexity: O(C(n,k) × n_beta)
+// For AR1 base (8 DB + 10 GA slots, 10 beta values): ~18000 evals`
+};
+
+// =========================================================================
+// PHYSICS IMPLEMENTATION
+// =========================================================================
+const Ef1=230e9,Ef2=15e9,Gf12=27e9,nuf=.20,Em=3.5e9,num_=.35;
+const Gm=Em/(2*(1+num_)),Vf=.50,rho_f=1800;
+function HT(Ep,Em_,Vf_,xi){const e=((Ep/Em_)-1)/((Ep/Em_)+xi);return Em_*(1+xi*e*Vf_)/(1-e*Vf_);}
+const E1_ud=Ef1*Vf+Em*(1-Vf), nu12_ud=nuf*Vf+num_*(1-Vf);
+const E2_ud=HT(Ef2,Em,Vf,2), G12_ud=HT(Gf12,Gm,Vf,1);
+const kc=.92, t_DB=(0.300/2)/(Vf*rho_f), t_GA=0.302/(Vf*rho_f);
+const E1_GA=.5*(E1_ud+E2_ud)*kc, G12_GA=HT(Gf12,Gm,Vf,1);
+
+function makePly(fab,angle){
+  if(fab==='GA90R') return{fabric:'GA90R',angle,e1:E1_GA,e2:E1_GA,g12:G12_GA,nu12:.05,t:t_GA};
+  return{fabric:'DB300',angle,e1:E1_ud,e2:E2_ud,g12:G12_ud,nu12:nu12_ud,t:t_DB};
+}
+
+function buildABD(stk){
+  const t_tot=stk.reduce((s,p)=>s+p.t,0);
+  let z=-t_tot/2;
+  let A11=0,A22=0,A12=0,A66=0,A16=0,A26=0,D11=0,D22=0,D12=0,D66=0,D16=0,D26=0;
+  for(const p of stk){
+    const nu21=p.nu12*p.e2/p.e1,D=1-p.nu12*nu21;
+    const q11=p.e1/D,q22=p.e2/D,q12=p.nu12*p.e2/D,q66=p.g12;
+    const a=p.angle*Math.PI/180,m=Math.cos(a),n=Math.sin(a),m2=m*m,n2=n*n;
+    const qb11=q11*m2*m2+2*(q12+2*q66)*n2*m2+q22*n2*n2;
+    const qb22=q11*n2*n2+2*(q12+2*q66)*n2*m2+q22*m2*m2;
+    const qb12=(q11+q22-4*q66)*n2*m2+q12*(m2*m2+n2*n2);
+    const qb66=(q11+q22-2*q12-2*q66)*n2*m2+q66*(n2*n2+m2*m2);
+    const qb16=(q11-q12-2*q66)*m2*m*n-(q22-q12-2*q66)*n2*m*n;
+    const qb26=(q11-q12-2*q66)*n2*m*n-(q22-q12-2*q66)*m2*m*n;
+    const z0=z,z1=z+p.t,dz=p.t,dz3=(z1**3-z0**3)/3;
+    A11+=qb11*dz;A22+=qb22*dz;A12+=qb12*dz;A66+=qb66*dz;A16+=qb16*dz;A26+=qb26*dz;
+    D11+=qb11*dz3;D22+=qb22*dz3;D12+=qb12*dz3;D66+=qb66*dz3;D16+=qb16*dz3;D26+=qb26*dz3;
+    z=z1;
+  }
+  return{A11,A22,A12,A66,A16,D11,D22,D12,D66,D16,D26,Gxy:A66/t_tot,Geff:12*D66/t_tot**3,t_tot};
+}
+
+// =========================================================================
+// HALF-STACK BUILDER  — base angles stored separately from beta
+// beta is applied at render time, NOT stored in stack angles
+// This fixes the bug where beta slider had no effect
+// =========================================================================
+const HALF_AR1 =[['B',45],['B',45],['W',0],['W',0],['B',45],['B',45],['W',0],['B',45],['B',45],['W',0],['W',0]];
+const HALF_MORE_DB=[['B',45],['B',45],['B',45],['B',45],['W',0],['W',0],['B',45],['B',45],['W',0],['B',45],['B',45],['W',0],['B',45],['B',45]];
+const HALF_MORE_GA=[['W',0],['W',0],['B',45],['B',45],['W',0],['W',0],['B',45],['B',45],['W',0],['W',0],['B',45],['B',45],['W',0],['W',0]];
+const HALF_EQUAL =[['B',45],['B',45],['W',0],['W',0],['B',45],['B',45],['W',0],['W',0],['B',45],['B',45],['W',0],['W',0]];
+
+// baseStack stores the BASE angles (β=0). beta is applied in getStack()
+let baseStack = [];  // array of {fabric, baseAngle}
+
+function initBase(halfDesc){
+  const top=halfDesc.map(([k,a])=>({fabric:k==='W'?'GA90R':'DB300',baseAngle:a}));
+  const bot=[...halfDesc].reverse().map(([k,a])=>({
+    fabric:k==='W'?'GA90R':'DB300',
+    baseAngle:k==='W'?a:-a   // negate ±45 for symmetric balance
+  }));
+  baseStack=[...top,...bot];
+}
+
+// Apply beta to baseStack → actual stack for ABD computation
+function getStack(b){
+  return baseStack.map(p=>makePly(p.fabric, p.baseAngle + b));
+}
+
+// =========================================================================
+// PRESETS
+// =========================================================================
+const PRESETS={
+  ar1_std:  ()=>initBase(HALF_AR1),
+  ar1_tail: ()=>{ initBase(HALF_AR1); setBeta(20); },
+  ar1_neg:  ()=>{ initBase(HALF_AR1); setBeta(-20); },
+  all45:    ()=>initBase([['B',45],['B',45],['B',45],['B',45],['B',45],['B',45],['B',45],['B',45],['B',45],['B',45]]),
+  all090:   ()=>initBase([['W',0],['W',0],['W',0],['W',0],['W',0],['W',0],['W',0],['W',0],['W',0]]),
+};
+
+function setBeta(b){
+  beta=b;
+  document.getElementById('beta').value=b;
+  document.getElementById('lbl_beta').textContent=(b>=0?'+':'')+b+'°';
+}
+
+// =========================================================================
+// STATE
+// =========================================================================
+let selPly=0;
+let viewMode='split';
+let geo={cr:300,ct:150,s:160,sw:57.4,bd:76,cant:0};
+let beta=0;
+let selScrMod=null;
+
+initBase(HALF_AR1);
+
+function plyCol(p,a=1){
+  if(p.fabric==='GA90R') return `rgba(51,232,160,${a})`;
+  const n=((p.angle%360)+360)%360;
+  return(n<90||n>270)?`rgba(0,229,255,${a})`:`rgba(255,85,51,${a})`;
+}
+
+// =========================================================================
+// .ORK PARSER — using JSZip (robust, handles all compression variants)
+// =========================================================================
+async function loadOrk(input){
+  const file=input.files[0]; if(!file) return;
+  const info=document.getElementById('orkInfo');
+  info.textContent='Parsing '+file.name+' …'; info.classList.add('show');
+  try{
+    const buf=await file.arrayBuffer();
+    let xmlStr=null;
+
+    // Try JSZip first (handles all ZIP variants including data descriptors)
+    if(typeof JSZip!=='undefined'){
+      const zip=await JSZip.loadAsync(buf);
+      // Find the XML entry — may be named openrocket.xml or just .xml
+      const xmlEntry=zip.file(/\.xml$/i)[0] || zip.file(/openrocket/i)[0];
+      if(xmlEntry) xmlStr=await xmlEntry.async('string');
+    }
+
+    // Fallback: try treating as plain XML (some .ork versions are uncompressed)
+    if(!xmlStr){
+      const dec=new TextDecoder();
+      const raw=dec.decode(buf);
+      if(raw.trim().startsWith('<?xml')||raw.trim().startsWith('<openrocket')) xmlStr=raw;
+    }
+
+    if(!xmlStr) throw new Error('Could not extract XML from .ork file');
+
+    const xml=(new DOMParser()).parseFromString(xmlStr,'text/xml');
+
+    function getNum(root,tags){
+      // Use localName matching to handle OR namespace prefixes (OR 22.02+)
+      const search = root || xml;
+      for(const tag of tags){
+        const all = search.getElementsByTagName('*');
+        for(const el of all){
+          if(el.localName.toLowerCase()===tag.toLowerCase()&&el.textContent.trim()!=='')
+            return parseFloat(el.textContent);
+        }
+      }
+      return null;
+    }
+
+    // Fin set — try multiple element/attribute names used across OR versions
+    // OR 22.02+ uses namespace-qualified tags. querySelector fails on 'foo:bar'.
+    // getElementsByTagName('*') finds all regardless of namespace.
+    function findEl(names) {
+      for (const n of names) {
+        // Try all elements matching any local name (strips namespace prefix)
+        const all = xml.getElementsByTagName('*');
+        for (const el of all) {
+          if (names.some(name => el.localName.toLowerCase() === name.toLowerCase())) return el;
+        }
+      }
+      return null;
+    }
+    const finSet = findEl(['trapezoidfinset','finset','trapezoidFins','fins']);
+
+    const rc=getNum(finSet,['rootchord','rootChord','rootchordlength','RootChord']);
+    const tc=getNum(finSet,['tipchord','tipChord','tipchordlength','TipChord']);
+    const sp=getNum(finSet,['height','Height','span','semispan']);
+    const sl=getNum(finSet,['sweeplength','sweepLength','SweepLength']);
+    const sa=getNum(finSet,['sweepangle','sweepAngle','SweepAngle']);
+
+    // Body tube
+    const bt=xml.querySelector('bodytube,BodyTube');
+    const outerR=getNum(bt,['radius','outerradius','outerRadius','Radius']);
+    const outerD=getNum(bt,['diameter','outerdiameter','outerDiameter','Diameter']);
+
+    const applied=[];
+    function applyGeo(id,lblId,val,unit,fmt){
+      if(val===null) return;
+      const v=Math.round(val*(unit==='mm'?1000:unit==='deg'?180/Math.PI:1));
+      document.getElementById(id).value=v;
+      geo[id]=v;
+      document.getElementById(lblId).textContent=v+(fmt||(' '+unit));
+      applied.push(id+'='+v);
+    }
+    if(rc) applyGeo('cr','lbl_cr',rc,'mm');
+    if(tc) applyGeo('ct','lbl_ct',tc,'mm');
+    if(sp) applyGeo('s','lbl_s',sp,'mm');
+    if(sa!=null) applyGeo('sw','lbl_sw',sa,'deg','°');
+    else if(sl&&sp) {
+      const ang=Math.atan2(sl,sp)*180/Math.PI;
+      document.getElementById('sw').value=ang.toFixed(1);
+      geo.sw=ang; document.getElementById('lbl_sw').textContent=ang.toFixed(1)+'°';
+      applied.push('Λ='+ang.toFixed(1)+'°');
+    }
+    if(outerR){const d=Math.round(outerR*2000);document.getElementById('bd').value=d;geo.bd=d;document.getElementById('lbl_bd').textContent=d+' mm';applied.push('⌀'+d);}
+    else if(outerD){const d=Math.round(outerD*1000);document.getElementById('bd').value=d;geo.bd=d;document.getElementById('lbl_bd').textContent=d+' mm';applied.push('⌀'+d);}
+
+    // Simulation max-q
+    let simNote='';
+    const datapoints=[...xml.querySelectorAll('datapoint')];
+    if(datapoints.length>0){
+      let maxQ=-1,best=null;
+      for(const dp of datapoints){
+        const vals={};
+        for(const c of dp.children) vals[c.tagName.toLowerCase()]=parseFloat(c.textContent)||0;
+        const rho=vals['air-density']||vals['airdensity']||1.225;
+        const v=vals['velocity']||vals['vel']||0;
+        const q=0.5*rho*v*v;
+        if(q>maxQ){maxQ=q;best=vals;}
+      }
+      if(best){
+        const v=(best['velocity']||best['vel']||0).toFixed(1);
+        const alt=(best['altitude']||best['alt']||0).toFixed(0);
+        simNote=` | Max-Q: v=${v} m/s alt=${alt} m q=${(maxQ/1000).toFixed(1)} kPa`;
+      }
+    }
+
+    info.textContent='✓ '+file.name+(applied.length?' → '+applied.join(', '):' (fin geometry not found)')+simNote;
+    render();
+  }catch(e){
+    info.textContent='⚠ '+e.message;
+    console.error(e);
+  }
+  input.value='';
+}
+
+// =========================================================================
+// CONTROLS
+// =========================================================================
+function onGeo(){
+  geo.cr=+document.getElementById('cr').value;
+  geo.ct=+document.getElementById('ct').value;
+  geo.s=+document.getElementById('s').value;
+  geo.sw=+document.getElementById('sw').value;
+  geo.bd=+document.getElementById('bd').value;
+  geo.cant=+document.getElementById('cant').value;
+  document.getElementById('lbl_cr').textContent=geo.cr+' mm';
+  document.getElementById('lbl_ct').textContent=geo.ct+' mm';
+  document.getElementById('lbl_s').textContent=geo.s+' mm';
+  document.getElementById('lbl_sw').textContent=geo.sw+'°';
+  document.getElementById('lbl_bd').textContent=geo.bd+' mm';
+  document.getElementById('lbl_cant').textContent=geo.cant.toFixed(1)+'°';
+  render();
+}
+
+// FIX: onBeta now sets beta and calls render() which uses getStack(beta)
+function onBeta(){
+  beta=+document.getElementById('beta').value;
+  document.getElementById('lbl_beta').textContent=(beta>=0?'+':'')+beta+'°';
+  render();  // render uses getStack(beta) → angles are recomputed
+}
+
+function applyPreset(){
+  const key=document.getElementById('presetSel').value;
+  if(key==='ar1_tail') setBeta(20);
+  else if(key==='ar1_neg') setBeta(-20);
+  else setBeta(0);
+  PRESETS[key]();
+  selPly=0; render();
+}
+
+function setView(v){
+  viewMode=v;
+  document.querySelectorAll('.tab').forEach(t=>t.classList.remove('active'));
+  const el=document.getElementById('tab_'+v);
+  if(el) el.classList.add('active');
+  document.getElementById('vizPanel').style.display= (v==='opt'||v==='scr'||v==='flutter')?'none':'flex';
+  document.getElementById('optPanel').classList.toggle('show',v==='opt');
+  document.getElementById('scrPanel').classList.toggle('show',v==='scr');
+  const fp=document.getElementById('flutterPanel'); if(fp) fp.style.display=(v==='flutter'?'flex':'none');
+  if(v!=='opt'&&v!=='scr'){
+    document.getElementById('topBlock').style.display='flex';
+    document.getElementById('botBlock').style.display='flex';
+    if(v==='xsec') document.getElementById('botBlock').style.display='none';
+    if(v==='fin')  document.getElementById('topBlock').style.display='none';
+  }
+  if(v==='scr'&&!selScrMod) selectScript('material_db');
+  render();
+}
+
+// =========================================================================
+// PLY OPERATIONS  — operate on baseStack, not rendered stack
+// =========================================================================
+function addPly(where){
+  const fab=document.getElementById('addFab').value;
+  const ang=+document.getElementById('addAng').value;
+  const newP={fabric:fab,baseAngle:ang};
+  if(where==='top'){baseStack.unshift(newP);selPly=0;}
+  else if(where==='bot'){baseStack.push(newP);selPly=baseStack.length-1;}
+  else{const m=Math.floor(baseStack.length/2);baseStack.splice(m,0,{...newP});baseStack.splice(m+1,0,{fabric:fab,baseAngle:-ang});selPly=m;}
+  render();
+}
+function deletePly(i){
+  if(baseStack.length<=1) return;
+  baseStack.splice(i,1);
+  selPly=Math.min(selPly,baseStack.length-1);
+  render();
+}
+function setPlyFab(i,fab){baseStack[i].fabric=fab;render();}
+function setPlyBaseAngle(i,v){
+  baseStack[i].baseAngle=v;
+  const s=document.getElementById('angSlider'); if(s) s.value=v;
+  const n=document.getElementById('angNum'); if(n) n.value=v.toFixed(1);
+  const l=document.getElementById('angLbl'); if(l){
+    const eff=v+beta;
+    l.textContent=(eff>=0?'+':'')+eff.toFixed(1)+'° (base '+(v>=0?'+':'')+v.toFixed(1)+'°)';
+  }
+  render();
+}
+function setPlyT(i,vmm){
+  const stk=getStack(beta);
+  // Override thickness in baseStack by storing custom t
+  baseStack[i].customT=Math.max(0.01,vmm)*1e-3;
+  render();
+}
+
+function makePlyFromBase(bp){
+  const p=makePly(bp.fabric, bp.baseAngle + beta);
+  if(bp.customT) p.t=bp.customT;
+  return p;
+}
+
+// =========================================================================
+// UI RENDERS
+// =========================================================================
+function renderPlyList(){
+  const stk=getStack(beta);
+  const list=document.getElementById('plyList');
+  list.innerHTML='';
+  document.getElementById('plyCnt').textContent=baseStack.length;
+  baseStack.forEach((bp,i)=>{
+    const p=stk[i];
+    const r=document.createElement('div');
+    r.className='ply-row'+(i===selPly?' sel':'');
+    r.onclick=()=>{selPly=i;render();};
+    const effAng=bp.baseAngle+beta;
+    r.innerHTML=`<div class="ply-idx">${i+1}</div>
+      <div class="ply-dot" style="background:${plyCol(p)}"></div>
+      <div class="ply-fab">${bp.fabric}</div>
+      <div class="ply-ang" style="color:${plyCol(p)}">${effAng>=0?'+':''}${effAng.toFixed(1)}°</div>
+      <div class="ply-t">${(p.t*1e3).toFixed(3)}</div>
+      <button class="ply-del" onclick="event.stopPropagation();deletePly(${i})">×</button>`;
+    list.appendChild(r);
+  });
+  const rows=list.querySelectorAll('.ply-row');
+  if(rows[selPly]) rows[selPly].scrollIntoView({block:'nearest'});
+}
+
+function renderEditor(){
+  const bp=baseStack[selPly];
+  document.getElementById('selLbl').textContent=bp?`PLY ${selPly+1}`:'–';
+  if(!bp){document.getElementById('edBody').innerHTML='<div style="color:var(--dim);font-size:11px">–</div>';return;}
+  const stk=getStack(beta);
+  const p=stk[selPly];
+  const abd=buildABD(stk);
+  let z=-abd.t_tot/2;
+  for(let i=0;i<selPly;i++) z+=stk[i].t;
+  const zm=z+p.t/2,z1=z+p.t;
+  const effAng=bp.baseAngle+beta;
+  document.getElementById('edBody').innerHTML=`
+    <div class="ed-field"><div class="ed-label">Fabric</div>
+      <div class="fabric-btns">
+        <div class="fab-btn ${bp.fabric==='DB300'?'active-db':''}" onclick="setPlyFab(${selPly},'DB300')">DB300<br>±45° NCF</div>
+        <div class="fab-btn ${bp.fabric==='GA90R'?'active-ga':''}" onclick="setPlyFab(${selPly},'GA90R')">GA90R<br>0/90 Wov</div>
+      </div>
+    </div>
+    <div class="ed-field">
+      <div class="ed-label">Base angle (β=0 ref) <b id="angLbl">${effAng>=0?'+':''}${effAng.toFixed(1)}°</b></div>
+      <input type="range" class="ed-inp" id="angSlider" min="-90" max="90" step="0.5" value="${bp.baseAngle}" oninput="setPlyBaseAngle(${selPly},+this.value)">
+      <input type="number" class="ed-inp" id="angNum" value="${bp.baseAngle.toFixed(1)}" min="-90" max="90" step="0.5" style="margin-top:4px" oninput="setPlyBaseAngle(${selPly},+this.value)">
+    </div>
+    <div class="ed-field">
+      <div class="ed-label">Effective angle (with β=${beta>=0?'+':''}${beta}°)</div>
+      <div style="font-family:var(--mono);font-size:13px;color:${plyCol(p)};padding:4px 0">${effAng>=0?'+':''}${effAng.toFixed(1)}°</div>
+    </div>
+    <div class="ed-field">
+      <div class="ed-label">Thickness override (mm)</div>
+      <input type="number" class="ed-inp" value="${(p.t*1e3).toFixed(4)}" min="0.01" max="5" step="0.01" oninput="setPlyT(${selPly},+this.value)">
+    </div>
+    <div class="ed-field"><div class="ed-label" style="margin-bottom:5px">Properties</div>
+      <table class="prop-table">
+        <tr><td>E1</td><td>${(p.e1/1e9).toFixed(2)} GPa</td></tr>
+        <tr><td>E2</td><td>${(p.e2/1e9).toFixed(2)} GPa</td></tr>
+        <tr><td>G12</td><td>${(p.g12/1e9).toFixed(2)} GPa</td></tr>
+        <tr><td>nu12</td><td>${p.nu12.toFixed(3)}</td></tr>
+        <tr><td>t ply</td><td>${(p.t*1e3).toFixed(4)} mm</td></tr>
+        <tr><td>z_bot</td><td>${(z*1e3).toFixed(3)} mm</td></tr>
+        <tr><td>z_mid</td><td>${(zm*1e3).toFixed(3)} mm</td></tr>
+        <tr><td>z_top</td><td>${(z1*1e3).toFixed(3)} mm</td></tr>
+      </table>
+    </div>
+    <button class="btn danger" onclick="deletePly(${selPly})" style="margin-top:2px">Delete Ply ${selPly+1}</button>`;
+}
+
+function renderABD(){
+  const r=buildABD(getStack(beta));
+  const d16c=Math.abs(r.D16)<0.1?'color:var(--green)':Math.abs(r.D16)<5?'color:var(--yellow)':'color:var(--accent2)';
+  document.getElementById('abdTbl').innerHTML=`
+    <tr><td>D11</td><td>${r.D11.toFixed(1)} N·m</td></tr>
+    <tr><td>D22</td><td>${r.D22.toFixed(1)} N·m</td></tr>
+    <tr><td>D66</td><td style="color:var(--accent)">${r.D66.toFixed(1)} N·m</td></tr>
+    <tr><td>D16</td><td style="${d16c}">${r.D16.toFixed(3)} N·m</td></tr>
+    <tr><td>G_xy</td><td>${(r.Gxy/1e9).toFixed(3)} GPa</td></tr>
+    <tr><td>t_tot</td><td style="color:var(--accent)">${(r.t_tot*1e3).toFixed(3)} mm</td></tr>`;
+}
+
+function renderKpis(){
+  const r=buildABD(getStack(beta));
+  const d16c=Math.abs(r.D16)<0.1?'ok':Math.abs(r.D16)<5?'warn':'bad';
+  const k=(l,v,c)=>`<div class="kpi"><span class="kpi-k">${l}</span><span class="kpi-v ${c||''}">${v}</span></div>`;
+  document.getElementById('topKpis').innerHTML=k('D66',r.D66.toFixed(1)+' N·m','hi')+k('D11',r.D11.toFixed(1)+' N·m')+k('t',(r.t_tot*1e3).toFixed(2)+' mm','hi');
+  document.getElementById('botKpis').innerHTML=k('D16',r.D16.toFixed(3)+' N·m',d16c)+k('G_xy',(r.Gxy/1e9).toFixed(2)+' GPa')+k('β',(beta>=0?'+':'')+beta+'°','');
+}
+
+// =========================================================================
+// OPTIMIZER
+// =========================================================================
+async function runOptimizer(){
+  const obj=document.getElementById('optObj').value;
+  const arch=document.getElementById('optArch').value;
+  const betaMode=document.getElementById('optBeta').value;
+  const thickLimit=document.getElementById('optThick').value;
+
+  document.getElementById('optBadge').textContent='running…';
+  document.getElementById('optRows').innerHTML='';
+  document.getElementById('optProg').style.width='0%';
+
+  const archMap={half_ar1:HALF_AR1,more_db:HALF_MORE_DB,more_ga:HALF_MORE_GA,equal:HALF_EQUAL};
+  const baseHalf=archMap[arch];
+
+  // Count DB and GA plies in half
+  const dbSlots=baseHalf.filter(([k])=>k==='B').length;
+  const gaSlots=baseHalf.filter(([k])=>k==='W').length;
+
+  // Generate distinct sequences by varying position of DB vs GA in the half
+  // Strategy: try all ways to arrange dbSlots DB300 and gaSlots GA90R in the half
+  const halfLen=baseHalf.length;
+  const sequences=[];
+
+  // Generate combinations: choose which positions are DB
+  function choose(n,k){
+    const combos=[];
+    function rec(start,curr){
+      if(curr.length===k){combos.push([...curr]);return;}
+      for(let i=start;i<=n-k+curr.length;i++){curr.push(i);rec(i+1,curr);curr.pop();}
+    }
+    rec(0,[]);
+    return combos;
+  }
+
+  const dbPositions=choose(halfLen,dbSlots);
+
+  // Beta values to try
+  let betas=[0];
+  if(betaMode==='pos') betas=[0,5,10,15,20,25,30,35,40,45];
+  else if(betaMode==='neg') betas=[0,-5,-10,-15,-20,-25,-30,-35,-40,-45];
+  else if(betaMode==='full') betas=[-45,-35,-25,-20,-15,-10,-5,0,5,10,15,20,25,35,45];
+
+  const thickMax=thickLimit==='6mm'?6.0e-3:thickLimit==='5mm'?5.5e-3:Infinity;
+
+  const results=[];
+  const total=dbPositions.length*betas.length;
+  let done=0;
+
+  // Reference values for balanced scoring
+  const refD66=210, refD11=600;
+
+  for(const dbPos of dbPositions){
+    const half=[];
+    const dbSet=new Set(dbPos);
+    for(let i=0;i<halfLen;i++){
+      half.push(dbSet.has(i)?['B',45]:['W',0]);
+    }
+
+    for(const b of betas){
+      // Build symmetric balanced laminate
+      const top=half.map(([k,a])=>makePly(k==='W'?'GA90R':'DB300',a+b));
+      const bot=[...half].reverse().map(([k,a])=>makePly(k==='W'?'GA90R':'DB300',k==='W'?a+b:-a+b));
+      const stk=[...top,...bot];
+      const r=buildABD(stk);
+
+      if(r.t_tot<=thickMax+1e-6){
+        let score;
+        if(obj==='D66') score=r.D66;
+        else if(obj==='D11') score=r.D11;
+        else if(obj==='balanced') score=0.5*r.D66/refD66+0.5*r.D11/refD11;
+        else score=-Math.abs(r.D16);  // minD16
+
+        const seqStr=half.map(([k])=>k==='B'?'±45':'0/90').join('|');
+        results.push({seq:seqStr,half,D66:r.D66,D11:r.D11,D16:r.D16,t:r.t_tot,beta:b,score});
+      }
+      done++;
+      if(done%50===0){
+        document.getElementById('optProg').style.width=(done/total*100).toFixed(0)+'%';
+        await new Promise(r=>setTimeout(r,0));
+      }
+    }
+  }
+
+  results.sort((a,b2)=>b2.score-a.score);
+  const top=results.slice(0,20);
+
+  document.getElementById('optBadge').textContent=results.length+' results';
+  document.getElementById('optCount').textContent=`(${total} evaluated, showing top ${top.length})`;
+  document.getElementById('optProg').style.width='100%';
+
+  const rows=document.getElementById('optRows');
+  rows.innerHTML='';
+  top.forEach((r,i)=>{
+    const d=document.createElement('div');
+    d.className='opt-row'+(i===0?' best':'');
+    const d16c=Math.abs(r.D16)<0.1?'var(--green)':Math.abs(r.D16)<5?'var(--yellow)':'var(--accent2)';
+    d.innerHTML=`<div>${i+1}</div>
+      <div class="opt-seq" title="${r.seq}">${r.seq}</div>
+      <div style="color:var(--accent)">${r.D66.toFixed(1)}</div>
+      <div>${r.D11.toFixed(1)}</div>
+      <div style="color:${d16c}">${r.D16.toFixed(2)}</div>
+      <div>${(r.t*1e3).toFixed(2)}</div>
+      <div style="color:var(--yellow)">${r.beta>=0?'+':''}${r.beta}°</div>`;
+    d.onclick=()=>{
+      // Apply this layup to the current stack
+      const top2=r.half.map(([k,a])=>({fabric:k==='W'?'GA90R':'DB300',baseAngle:a}));
+      const bot2=[...r.half].reverse().map(([k,a])=>({fabric:k==='W'?'GA90R':'DB300',baseAngle:k==='W'?a:-a}));
+      baseStack=[...top2,...bot2];
+      setBeta(r.beta);
+      selPly=0;
+      setView('split');
+      render();
+    };
+    rows.appendChild(d);
+  });
+}
+
+// =========================================================================
+// SCRIPT MANAGER
+// =========================================================================
+
+function renderScriptList(){
+  const list=document.getElementById('scrList');
+  list.innerHTML='';
+  Object.entries(MODULES).forEach(([key,mod])=>{
+    const d=document.createElement('div');
+    d.className='scr-item'+(key===selScrMod?' sel':'');
+    d.dataset.key=key;
+    d.onclick=()=>selectScript(key);
+    d.innerHTML=`<div class="scr-item-name">${mod.name}</div><div class="scr-item-desc">${mod.desc}</div>`;
+    list.appendChild(d);
+  });
+}
+
+function downloadScript(){
+  if(!selScrMod||!MODULES[selScrMod]) return;
+  const mod=MODULES[selScrMod];
+  // Build a standalone Python file with header comment
+  const header=`# ${mod.name}\n# Generated by FalconLAUNCH VI Composite Fin Viewer v5\n# ${mod.desc}\n\n`;
+  const blob=new Blob([header+mod.src],{type:'text/plain'});
+  const a=document.createElement('a');
+  a.href=URL.createObjectURL(blob);
+  a.download=selScrMod+'.py';
+  a.click();
+  URL.revokeObjectURL(a.href);
+}
+
+function selectScript(key){
+  selScrMod=key;
+  document.querySelectorAll('.scr-item').forEach(el=>el.classList.toggle('sel',el.dataset.key===key));
+  const mod=MODULES[key];
+  if(!mod) return;
+  const nameEl=document.getElementById('scrModName');
+  if(nameEl) nameEl.textContent=mod.name;
+  const pre=document.getElementById('scrPre');
+  let src2=mod.src
+    .replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;')
+    .replace(/(\/\/[^\n]*)/g,'<span class="cm">$1</span>')
+    .replace(/\b(const|let|function|return|for|if|else|new|Math|of|true|false|null)\b/g,'<span class="kw">$1</span>')
+    .replace(/\b(\d+\.?\d*(?:e[+-]?\d+)?)\b/g,'<span class="num">$1</span>')
+    .replace(/\b(HT|buildABD|makePly|Q_matrix|transformQ|ISA|flutterNACA4197)\b/g,'<span class="fn">$1</span>');
+  pre.innerHTML=src2;
+}
+
+
+// =========================================================================
+// FLUTTER ANALYSIS
+// =========================================================================
+function ISA(h){
+  const T0=288.15,P0=101325,L=0.0065,R=287.05,g=9.80665,gam=1.4;
+  const T=T0-L*h, P=P0*(T/T0)**(g/(R*L)), rho=P/(R*T), a=Math.sqrt(gam*R*T);
+  return{T,P,rho,a};
+}
+function flutterChain(D66,t_m,span,cr,ct,sweep_deg,h,Mach){
+  const {rho,a,P}=ISA(h);
+  const Vr=Mach*a, q=0.5*rho*Vr*Vr;
+  const AR=2*span/(cr+ct);
+  const mac=cr*(2/3)*(1+ct/cr+(ct/cr)**2)/(1+ct/cr);
+  const tc=t_m/mac;
+  const Geff=12*D66/t_m**3;
+  // NACA TN 4197
+  const K=Math.max(0.40, 0.65*(1+0.10*(AR-1)));
+  let Vf=Math.sqrt(Geff*t_m**3/(rho*span**2*K));
+  const tc_ref=0.02; if(tc>0) Vf*=Math.sqrt(tc_ref/tc);
+  const Vf_sub=Vf;
+  // Supersonic
+  let f_sup=1.0;
+  if(Mach>1.0){f_sup=Math.sqrt((2*Math.PI*0.25)/(4/Math.sqrt(Mach*Mach-1)*0.10));}
+  const Vf_super=Vf_sub*f_sup;
+  // Sweep
+  const f_sw=sweep_deg>0?1/Math.sqrt(Math.cos(sweep_deg*Math.PI/180)):1.0;
+  const Vf_final=Vf_super*f_sw;
+  const FSF=Vf_final/Vr;
+  return{Vr,a,rho,q,AR,mac,tc,Geff,Vf_sub,f_sup,Vf_super,f_sw,Vf_final,FSF,Mf:Vf_final/a};
+}
+
+function runFlutter(){
+  const h=+document.getElementById('fAlt').value;
+  const M=+document.getElementById('fMach').value;
+  const fsf_req=+document.getElementById('fFSF').value;
+  const r=buildABD(getStack(beta));
+  const D66=r.D66, t_m=r.t_tot;
+  const cr=geo.cr/1000, ct=geo.ct/1000, span=geo.s/1000, sw=geo.sw;
+  const f=flutterChain(D66,t_m,span,cr,ct,sw,h,M);
+  const pass=f.FSF>=fsf_req;
+  const col=pass?'var(--green)':'var(--accent2)';
+  document.getElementById('fsfBadge').textContent='FSF '+(pass?'✓':'✗')+' '+f.FSF.toFixed(3);
+  document.getElementById('fsfBadge').style.color=col;
+  document.getElementById('flutterResult').innerHTML=`
+<span style="color:var(--mid)">Laminate:</span>  D66 = ${D66.toFixed(2)} N·m   t = ${(t_m*1e3).toFixed(3)} mm   G_eff = ${(f.Geff/1e9).toFixed(3)} GPa<br>
+<span style="color:var(--mid)">Atmosphere:</span> h = ${h} m   ρ = ${f.rho.toFixed(4)} kg/m³   a = ${f.a.toFixed(2)} m/s   q = ${(f.q/1e3).toFixed(2)} kPa<br>
+<span style="color:var(--mid)">Fin:</span>       AR = ${f.AR.toFixed(3)}   MAC = ${(f.mac*1e3).toFixed(1)} mm   t/c = ${(f.tc*100).toFixed(2)}%<br>
+<span style="color:var(--mid)">Rocket:</span>    V = ${f.Vr.toFixed(1)} m/s   M = ${M.toFixed(3)}<br>
+<br>
+<span style="color:var(--dim)">[1] NACA TN 4197 (subsonic):    </span> Vf = ${f.Vf_sub.toFixed(1)} m/s<br>
+<span style="color:var(--dim)">[2] Ackeret (×${f.f_sup.toFixed(3)}):           </span> Vf = ${f.Vf_super.toFixed(1)} m/s<br>
+<span style="color:var(--dim)">[3] Sweep Λ=${sw}° (×${f.f_sw.toFixed(3)}):      </span> Vf = ${f.Vf_final.toFixed(1)} m/s   Mf = ${f.Mf.toFixed(3)}<br>
+<br>
+<span style="color:${col};font-size:14px;font-weight:600">FSF = ${f.FSF.toFixed(4)}   ${pass?'✓ PASS':'✗ FAIL'}</span>   (required ≥ ${fsf_req.toFixed(2)})   margin = ${((f.FSF/fsf_req-1)*100).toFixed(1)}%
+`;
+  // Altitude sweep table
+  const rows=document.getElementById('flutterRows');
+  rows.innerHTML='';
+  for(let alt=0;alt<=4000;alt+=250){
+    const ff=flutterChain(D66,t_m,span,cr,ct,sw,alt,M);
+    const ok=ff.FSF>=fsf_req;
+    const tag=Math.abs(alt-h)<130?' ← max-q':'';
+    const d=document.createElement('div');
+    d.className='opt-row';
+    d.style.gridTemplateColumns='60px 70px 70px 70px 80px 80px 60px 60px';
+    d.style.color=ok?'':'var(--accent2)';
+    d.innerHTML=`<div>${alt}</div><div>${ff.rho.toFixed(4)}</div><div>${ff.a.toFixed(1)}</div>
+      <div>${ff.Vr.toFixed(1)}</div><div>${ff.Vf_sub.toFixed(1)}</div>
+      <div style="color:${ok?'var(--green)':'var(--accent2)'}">${ff.Vf_final.toFixed(1)}</div>
+      <div style="color:${ok?'var(--green)':'var(--accent2)'}">${ff.FSF.toFixed(3)}</div>
+      <div>${ok?'PASS':'FAIL'}${tag}</div>`;
+    rows.appendChild(d);
+  }
+}
+
+// =========================================================================
+// CANVAS DRAWS
+// =========================================================================
+function drawXsec(cvs){
+  const stk=getStack(beta);
+  const ctx=cvs.getContext('2d');
+  const W=cvs.width,H=cvs.height;
+  ctx.clearRect(0,0,W,H);
+  const n=stk.length, t_tot=buildABD(stk).t_tot;
+  const scY=Math.min((H-60)/t_tot,120000);
+  const PW=Math.min(W*0.52,360), PH=t_tot*scY;
+  const ox=(W-PW)/2, oy=(H-PH)/2;
+  let y=oy;
+  const regions=[];
+  for(let i=0;i<n;i++){
+    const p=stk[i], ph=p.t*scY, isSel=(i===selPly);
+    ctx.fillStyle=plyCol(p,isSel?1:.7);
+    ctx.fillRect(ox,y,PW,ph);
+    ctx.save();
+    ctx.beginPath();ctx.rect(ox+1,y+1,PW-2,Math.max(ph-2,.5));ctx.clip();
+    const rad=p.angle*Math.PI/180,cx2=ox+PW/2,cy2=y+ph/2,len=Math.hypot(PW,ph)*1.5;
+    ctx.strokeStyle='rgba(0,0,0,.22)';ctx.lineWidth=.7;
+    for(let off=-len;off<=len;off+=8){
+      const px=cx2+Math.cos(rad+Math.PI/2)*off,py=cy2+Math.sin(rad+Math.PI/2)*off;
+      ctx.beginPath();ctx.moveTo(px-Math.cos(rad)*len,py+Math.sin(rad)*len);ctx.lineTo(px+Math.cos(rad)*len,py-Math.sin(rad)*len);ctx.stroke();
+    }
+    ctx.restore();
+    ctx.strokeStyle=isSel?'rgba(255,255,255,.9)':'rgba(0,0,0,.4)';
+    ctx.lineWidth=isSel?1.5:.4;
+    ctx.strokeRect(ox,y,PW,ph);
+    if(ph>=6){
+      ctx.fillStyle='rgba(0,0,0,.7)';
+      const fs=Math.min(10,ph*.7);
+      ctx.font=`${fs}px Share Tech Mono`;ctx.textBaseline='middle';
+      ctx.textAlign='left';ctx.fillText(''+(i+1),ox+4,y+ph/2);
+      ctx.textAlign='right';ctx.fillText(`${p.angle>=0?'+':''}${p.angle.toFixed(1)}°`,ox+PW-4,y+ph/2);
+    }
+    regions.push({y0:y,y1:y+ph,x0:ox,x1:ox+PW,idx:i});
+    y+=ph;
+  }
+  const ymid=oy+(t_tot/2)*scY;
+  ctx.setLineDash([4,3]);ctx.strokeStyle='rgba(255,255,255,.2)';ctx.lineWidth=1;
+  ctx.beginPath();ctx.moveTo(ox-14,ymid);ctx.lineTo(ox+PW+14,ymid);ctx.stroke();
+  ctx.setLineDash([]);
+  ctx.fillStyle='rgba(255,255,255,.25)';ctx.font='9px Share Tech Mono';ctx.textAlign='left';ctx.textBaseline='middle';
+  ctx.fillText('midplane',ox+PW+6,ymid);
+  const sbx=ox-20;
+  ctx.strokeStyle='rgba(255,255,255,.18)';ctx.lineWidth=1;
+  ctx.beginPath();ctx.moveTo(sbx,oy);ctx.lineTo(sbx,oy+PH);ctx.stroke();
+  [oy,oy+PH].forEach(yy=>{ctx.beginPath();ctx.moveTo(sbx-3,yy);ctx.lineTo(sbx+3,yy);ctx.stroke();});
+  ctx.save();ctx.translate(sbx-9,oy+PH/2);ctx.rotate(-Math.PI/2);
+  ctx.fillStyle='rgba(255,255,255,.2)';ctx.font='9px Share Tech Mono';ctx.textAlign='center';ctx.textBaseline='middle';
+  ctx.fillText(`${(t_tot*1e3).toFixed(3)} mm`,0,0);ctx.restore();
+  ctx.fillStyle='rgba(255,255,255,.2)';ctx.font='9px Share Tech Mono';ctx.textAlign='center';
+  ctx.textBaseline='bottom';ctx.fillText('OUTER SURFACE',ox+PW/2,oy-3);
+  ctx.textBaseline='top';ctx.fillText('INNER SURFACE',ox+PW/2,oy+PH+3);
+  cvs._regions=regions;
+}
+
+function drawFin(cvs){
+  const stk=getStack(beta);
+  const ctx=cvs.getContext('2d');
+  const W=cvs.width,H=cvs.height;
+  ctx.clearRect(0,0,W,H);
+  const {cr,ct,s,sw,bd,cant}=geo;
+  const swR=sw*Math.PI/180,cantR=cant*Math.PI/180;
+  const MX=55,MY=40,bodyW=28;
+  const finAreaX=MX+bodyW+14,finAreaW=W-finAreaX-MX;
+  const sweepOff=s/Math.tan(Math.PI/2-swR+1e-9);
+  const maxC=Math.max(cr,ct+Math.abs(sweepOff));
+  const sc=Math.min(finAreaW/maxC,( H-MY*2)/s)*0.88;
+  const rootLEx=finAreaX+(finAreaW-maxC*sc)/2;
+  const rootLEy=MY+s*sc;  // ROOT AT BOTTOM
+  const rLE0={x:rootLEx,y:rootLEy};
+  const rTE0={x:rootLEx+cr*sc,y:rootLEy};
+  const tLE0={x:rootLEx+sweepOff*sc,y:rootLEy-s*sc};
+  const tTE0={x:rootLEx+(sweepOff+ct)*sc,y:rootLEy-s*sc};
+  const piv={x:rootLEx+cr*sc/2,y:rootLEy};
+  function rot(pt){const dx=pt.x-piv.x,dy=pt.y-piv.y;return{x:piv.x+dx*Math.cos(cantR)-dy*Math.sin(cantR),y:piv.y+dx*Math.sin(cantR)+dy*Math.cos(cantR)};}
+  const rLE=rot(rLE0),rTE=rot(rTE0),tLE=rot(tLE0),tTE=rot(tTE0);
+
+  // Rocket body
+  const bodyTop=MY+8,bodyBot=H-MY-8;
+  ctx.fillStyle='rgba(35,48,65,.9)';
+  ctx.beginPath();ctx.roundRect(MX,bodyTop,bodyW,bodyBot-bodyTop,bodyW/2);ctx.fill();
+  ctx.strokeStyle='rgba(90,120,155,.45)';ctx.lineWidth=1.2;
+  ctx.beginPath();ctx.roundRect(MX,bodyTop,bodyW,bodyBot-bodyTop,bodyW/2);ctx.stroke();
+  ctx.save();ctx.translate(MX-8,(bodyTop+bodyBot)/2);ctx.rotate(-Math.PI/2);
+  ctx.fillStyle='rgba(150,175,200,.4)';ctx.font='9px Share Tech Mono';ctx.textAlign='center';ctx.textBaseline='middle';
+  ctx.fillText(`⌀${bd} mm`,0,0);ctx.restore();
+
+  // Centerline
+  ctx.setLineDash([5,4]);ctx.strokeStyle='rgba(255,255,255,.1)';ctx.lineWidth=1;
+  ctx.beginPath();ctx.moveTo(MX+bodyW,rootLEy);ctx.lineTo(W-MX+20,rootLEy);ctx.stroke();
+  ctx.setLineDash([]);
+
+  // Fiber fill (selected ply)
+  const p=stk[selPly];
+  if(p){
+    ctx.save();
+    ctx.beginPath();ctx.moveTo(rLE.x,rLE.y);ctx.lineTo(rTE.x,rTE.y);ctx.lineTo(tTE.x,tTE.y);ctx.lineTo(tLE.x,tLE.y);ctx.closePath();ctx.clip();
+    ctx.fillStyle=plyCol(p,.07);ctx.fill();
+    const fRad=p.angle*Math.PI/180;
+    const fcx=(rLE.x+rTE.x+tLE.x+tTE.x)/4,fcy=(rLE.y+rTE.y+tLE.y+tTE.y)/4;
+    const dLen=Math.hypot(W,H);
+    ctx.strokeStyle=plyCol(p,.3);ctx.lineWidth=1.2;
+    for(let off=-dLen;off<=dLen;off+=13){
+      const px=fcx+Math.cos(fRad+Math.PI/2)*off,py=fcy-Math.sin(fRad+Math.PI/2)*off;
+      ctx.beginPath();ctx.moveTo(px+Math.cos(fRad)*dLen,py-Math.sin(fRad)*dLen);ctx.lineTo(px-Math.cos(fRad)*dLen,py+Math.sin(fRad)*dLen);ctx.stroke();
+    }
+    ctx.restore();
+  }
+
+  // Fin outline
+  ctx.beginPath();ctx.moveTo(rLE.x,rLE.y);ctx.lineTo(rTE.x,rTE.y);ctx.lineTo(tTE.x,tTE.y);ctx.lineTo(tLE.x,tLE.y);ctx.closePath();
+  ctx.strokeStyle='rgba(170,195,220,.7)';ctx.lineWidth=1.4;ctx.stroke();
+  // LE
+  ctx.beginPath();ctx.moveTo(rLE.x,rLE.y);ctx.lineTo(tLE.x,tLE.y);
+  ctx.strokeStyle='rgba(0,229,255,.85)';ctx.lineWidth=2.2;ctx.stroke();
+  // TE
+  ctx.beginPath();ctx.moveTo(rTE.x,rTE.y);ctx.lineTo(tTE.x,tTE.y);
+  ctx.strokeStyle='rgba(255,85,51,.7)';ctx.lineWidth=2.2;ctx.stroke();
+  // Root
+  ctx.beginPath();ctx.moveTo(rLE.x,rLE.y);ctx.lineTo(rTE.x,rTE.y);
+  ctx.strokeStyle='rgba(255,212,77,.6)';ctx.lineWidth=2;ctx.stroke();
+  // Tip
+  ctx.beginPath();ctx.moveTo(tLE.x,tLE.y);ctx.lineTo(tTE.x,tTE.y);
+  ctx.strokeStyle='rgba(200,215,230,.35)';ctx.lineWidth=1.2;ctx.stroke();
+
+  // Edge labels
+  ctx.font='bold 9px Share Tech Mono';
+  function edgeLbl(ax,ay,bx,by,txt,col){
+    const mx=(ax+bx)/2,my=(ay+by)/2,ang=Math.atan2(by-ay,bx-ax);
+    ctx.save();ctx.translate(mx,my);ctx.rotate(ang);
+    ctx.fillStyle=col;ctx.textAlign='center';ctx.textBaseline='bottom';ctx.fillText(txt,0,-5);ctx.restore();
+  }
+  edgeLbl(rLE.x,rLE.y,tLE.x,tLE.y,'LEADING EDGE','rgba(0,229,255,.8)');
+  edgeLbl(rTE.x,rTE.y,tTE.x,tTE.y,'TRAILING EDGE','rgba(255,85,51,.75)');
+  ctx.fillStyle='rgba(255,212,77,.7)';ctx.font='9px Share Tech Mono';ctx.textAlign='center';
+  ctx.textBaseline='top';ctx.fillText(`ROOT  cr=${cr} mm`,(rLE.x+rTE.x)/2,rLE.y+4);
+  ctx.fillStyle='rgba(200,215,230,.5)';ctx.textBaseline='bottom';
+  ctx.fillText(`TIP  ct=${ct} mm`,(tLE.x+tTE.x)/2,tLE.y-4);
+
+  // Span arrow
+  const spX=rLE.x-22;
+  ctx.setLineDash([3,3]);ctx.strokeStyle='rgba(255,255,255,.14)';ctx.lineWidth=1;
+  ctx.beginPath();ctx.moveTo(rLE.x-4,rLE.y);ctx.lineTo(spX-3,rLE.y);ctx.stroke();
+  ctx.beginPath();ctx.moveTo(tLE.x-4,tLE.y);ctx.lineTo(spX-3,tLE.y);ctx.stroke();
+  ctx.beginPath();ctx.moveTo(spX,rLE.y);ctx.lineTo(spX,tLE.y);ctx.stroke();
+  ctx.setLineDash([]);
+  ctx.save();ctx.translate(spX-10,(rLE.y+tLE.y)/2);ctx.rotate(-Math.PI/2);
+  ctx.fillStyle='rgba(255,255,255,.35)';ctx.font='9px Share Tech Mono';ctx.textAlign='center';ctx.textBaseline='middle';
+  ctx.fillText(`s = ${s} mm`,0,0);ctx.restore();
+
+  // Sweep arc
+  const arcR=Math.min(55,s*sc*.28);
+  ctx.beginPath();ctx.arc(rLE.x,rLE.y,arcR,-Math.PI/2,-Math.PI/2+swR);
+  ctx.strokeStyle='rgba(255,212,77,.5)';ctx.lineWidth=1;ctx.setLineDash([2,2]);ctx.stroke();ctx.setLineDash([]);
+  const aM=-Math.PI/2+swR/2;
+  ctx.fillStyle='rgba(255,212,77,.7)';ctx.font='9px Share Tech Mono';ctx.textAlign='left';ctx.textBaseline='middle';
+  ctx.fillText(`Λ=${sw}°`,rLE.x+Math.cos(aM)*(arcR+6),rLE.y+Math.sin(aM)*(arcR+6));
+
+  // Axis labels
+  ctx.fillStyle='rgba(150,175,200,.35)';ctx.font='9px Share Tech Mono';ctx.textAlign='left';ctx.textBaseline='bottom';
+  ctx.fillText('y ↑ span',finAreaX+4,H-MY+2);
+  ctx.fillText('x → chord (flight direction)',finAreaX+60,H-MY+2);
+
+  // Fiber rose
+  drawFiberRose(ctx,W-85,H-85,62,p);
+
+  // Fiber arrow in fin
+  if(p){
+    const fcx=(rLE.x+rTE.x+tLE.x+tTE.x)/4,fcy=(rLE.y+rTE.y+tLE.y+tTE.y)/4;
+    const fRad=p.angle*Math.PI/180,alen=Math.min(s,cr)*sc*.22;
+    const ax=fcx+Math.cos(fRad)*alen,ay=fcy-Math.sin(fRad)*alen;
+    const bx=fcx-Math.cos(fRad)*alen,by=fcy+Math.sin(fRad)*alen;
+    ctx.shadowColor=plyCol(p);ctx.shadowBlur=10;
+    ctx.strokeStyle=plyCol(p,1);ctx.lineWidth=2.2;
+    ctx.beginPath();ctx.moveTo(bx,by);ctx.lineTo(ax,ay);ctx.stroke();
+    const hw=6,hl=10,nx=Math.cos(fRad),ny=-Math.sin(fRad),tx=-ny,ty=nx;
+    ctx.fillStyle=plyCol(p);ctx.beginPath();
+    ctx.moveTo(ax,ay);ctx.lineTo(ax-nx*hl+tx*hw/2,ay-ny*hl+ty*hw/2);ctx.lineTo(ax-nx*hl-tx*hw/2,ay-ny*hl-ty*hw/2);ctx.closePath();ctx.fill();
+    ctx.shadowBlur=0;
+    ctx.fillStyle=plyCol(p);ctx.font='bold 11px Share Tech Mono';ctx.textAlign='center';ctx.textBaseline='bottom';
+    ctx.fillText(`PLY ${selPly+1}  ${p.angle>=0?'+':''}${p.angle.toFixed(1)}°`,ax,ay-13);
+  }
+  if(Math.abs(cant)>.05){
+    ctx.fillStyle='rgba(255,212,77,.7)';ctx.font='9px Share Tech Mono';ctx.textAlign='left';ctx.textBaseline='top';
+    ctx.fillText(`cant ${cant>=0?'+':''}${cant.toFixed(1)}°`,rTE.x+6,rTE.y+4);
+  }
+}
+
+function drawFiberRose(ctx,cx,cy,R,selP){
+  ctx.fillStyle='rgba(8,11,16,.84)';
+  ctx.beginPath();ctx.arc(cx,cy,R+8,0,Math.PI*2);ctx.fill();
+  ctx.strokeStyle='rgba(30,40,55,.9)';ctx.lineWidth=1;
+  ctx.beginPath();ctx.arc(cx,cy,R+8,0,Math.PI*2);ctx.stroke();
+  [R*.5,R].forEach(r=>{ctx.beginPath();ctx.arc(cx,cy,r,0,Math.PI*2);ctx.strokeStyle='rgba(255,255,255,.04)';ctx.lineWidth=.8;ctx.stroke();});
+  for(let a=0;a<180;a+=45){
+    const r=a*Math.PI/180;
+    ctx.beginPath();ctx.moveTo(cx-Math.cos(r)*(R+4),cy-Math.sin(r)*(R+4));ctx.lineTo(cx+Math.cos(r)*(R+4),cy+Math.sin(r)*(R+4));
+    ctx.strokeStyle='rgba(255,255,255,.05)';ctx.lineWidth=.6;ctx.stroke();
+  }
+  ctx.fillStyle='rgba(255,255,255,.2)';ctx.font='8px Share Tech Mono';ctx.textAlign='center';ctx.textBaseline='middle';
+  ctx.fillText('x',cx+R+5,cy);ctx.fillText('y',cx,cy-R-5);
+  // All plies
+  const stk=getStack(beta);
+  stk.forEach((p,i)=>{
+    if(i===selPly) return;
+    const rad=p.angle*Math.PI/180;
+    ctx.beginPath();ctx.moveTo(cx-Math.cos(rad)*R*.9,cy+Math.sin(rad)*R*.9);ctx.lineTo(cx+Math.cos(rad)*R*.9,cy-Math.sin(rad)*R*.9);
+    ctx.strokeStyle=plyCol(p,.18);ctx.lineWidth=1.2;ctx.stroke();
+  });
+  // Selected ply
+  if(selP){
+    const rad=selP.angle*Math.PI/180;
+    ctx.shadowColor=plyCol(selP);ctx.shadowBlur=8;
+    ctx.beginPath();ctx.moveTo(cx-Math.cos(rad)*R,cy+Math.sin(rad)*R);ctx.lineTo(cx+Math.cos(rad)*R,cy-Math.sin(rad)*R);
+    ctx.strokeStyle=plyCol(selP,1);ctx.lineWidth=2;ctx.stroke();ctx.shadowBlur=0;
+    [[1,-1],[-1,1]].forEach(([sx,sy])=>{ctx.beginPath();ctx.arc(cx+sx*Math.cos(rad)*R,cy+sy*Math.sin(rad)*R,3,0,Math.PI*2);ctx.fillStyle=plyCol(selP);ctx.fill();});
+    ctx.fillStyle=plyCol(selP);ctx.font='bold 9px Share Tech Mono';ctx.textAlign='center';ctx.textBaseline='middle';
+    ctx.fillText(`${selP.angle>=0?'+':''}${selP.angle.toFixed(0)}°`,cx+Math.cos(rad)*R*.55,cy-Math.sin(rad)*R*.55);
+  }
+  // β arc
+  if(Math.abs(beta)>.5){
+    const bR=beta*Math.PI/180;
+    const aR=R*.38;
+    ctx.beginPath();ctx.arc(cx,cy,aR,-Math.PI/2,-(Math.PI/2)+bR,beta<0);
+    ctx.strokeStyle='rgba(255,212,77,.7)';ctx.lineWidth=1.5;ctx.setLineDash([2,2]);ctx.stroke();ctx.setLineDash([]);
+    const mA=-(Math.PI/2)+bR/2;
+    ctx.fillStyle='rgba(255,212,77,.9)';ctx.font='bold 9px Share Tech Mono';ctx.textAlign='center';ctx.textBaseline='middle';
+    ctx.fillText(`β=${beta>=0?'+':''}${beta}°`,cx+Math.cos(mA)*(aR+14),cy+Math.sin(mA)*(aR+14));
+  }
+  ctx.beginPath();ctx.arc(cx,cy,2.5,0,Math.PI*2);ctx.fillStyle='rgba(255,255,255,.3)';ctx.fill();
+  ctx.fillStyle='rgba(255,255,255,.22)';ctx.font='8px Share Tech Mono';ctx.textAlign='center';ctx.textBaseline='top';
+  ctx.fillText('FIBER ROSE',cx,cy+R+3);
+}
+
+function drawPolar(cvs){
+  const stk=getStack(beta);
+  const ctx=cvs.getContext('2d');
+  const W=cvs.width,H=cvs.height;
+  ctx.clearRect(0,0,W,H);
+  const cx=W/2,cy=H/2,R=Math.min(W,H)*.38;
+  [R/4,R/2,R*.75,R].forEach(r=>{ctx.beginPath();ctx.arc(cx,cy,r,0,Math.PI*2);ctx.strokeStyle='rgba(255,255,255,.04)';ctx.lineWidth=1;ctx.stroke();});
+  for(let a=0;a<180;a+=30){
+    const r=a*Math.PI/180;
+    ctx.beginPath();ctx.moveTo(cx-Math.cos(r)*(R+18),cy-Math.sin(r)*(R+18));ctx.lineTo(cx+Math.cos(r)*(R+18),cy+Math.sin(r)*(R+18));
+    ctx.strokeStyle='rgba(255,255,255,.06)';ctx.lineWidth=1;ctx.stroke();
+    ctx.fillStyle='rgba(255,255,255,.18)';ctx.font='9px Share Tech Mono';ctx.textAlign='center';ctx.textBaseline='middle';
+    ctx.fillText(a+'°',cx+Math.cos(r)*(R+26),cy-Math.sin(r)*(R+26));
+    if(a&&a!==90)ctx.fillText((a+180)+'°',cx-Math.cos(r)*(R+26),cy+Math.sin(r)*(R+26));
+  }
+  ctx.fillStyle='rgba(255,255,255,.15)';ctx.font='9px Share Tech Mono';ctx.textAlign='center';ctx.textBaseline='middle';
+  ctx.fillText('0°',cx+R+28,cy);ctx.fillText('90°',cx,cy-R-16);ctx.fillText('180°',cx-R-28,cy);ctx.fillText('270°',cx,cy+R+16);
+  stk.forEach((p,i)=>{
+    if(i===selPly) return;
+    const rad=p.angle*Math.PI/180;
+    ctx.beginPath();ctx.moveTo(cx-Math.cos(rad)*R*.88,cy+Math.sin(rad)*R*.88);ctx.lineTo(cx+Math.cos(rad)*R*.88,cy-Math.sin(rad)*R*.88);
+    ctx.strokeStyle=plyCol(p,.16);ctx.lineWidth=1.5;ctx.stroke();
+  });
+  const sel=stk[selPly];if(!sel) return;
+  const rad2=sel.angle*Math.PI/180;
+  ctx.shadowColor=plyCol(sel);ctx.shadowBlur=16;
+  ctx.beginPath();ctx.moveTo(cx-Math.cos(rad2)*R,cy+Math.sin(rad2)*R);ctx.lineTo(cx+Math.cos(rad2)*R,cy-Math.sin(rad2)*R);
+  ctx.strokeStyle=plyCol(sel,1);ctx.lineWidth=2.5;ctx.stroke();ctx.shadowBlur=0;
+  [[1,-1],[-1,1]].forEach(([sx,sy])=>{ctx.beginPath();ctx.arc(cx+sx*Math.cos(rad2)*R,cy+sy*Math.sin(rad2)*R,4,0,Math.PI*2);ctx.fillStyle=plyCol(sel);ctx.fill();});
+  ctx.beginPath();ctx.arc(cx,cy,3,0,Math.PI*2);ctx.fillStyle='rgba(255,255,255,.3)';ctx.fill();
+  ctx.fillStyle=plyCol(sel);ctx.font='bold 14px Share Tech Mono';ctx.textAlign='center';ctx.textBaseline='middle';
+  ctx.fillText(`${sel.angle>=0?'+':''}${sel.angle.toFixed(1)}°`,cx+Math.cos(rad2)*R*.55,cy-Math.sin(rad2)*R*.55-12);
+  ctx.font='11px Share Tech Mono';ctx.textBaseline='bottom';
+  ctx.fillText(`PLY ${selPly+1} — ${sel.fabric}`,cx,H-6);
+}
+
+// =========================================================================
+// MAIN RENDER
+// =========================================================================
+function fitCvs(id,wrapId){
+  const c=document.getElementById(id),w=document.getElementById(wrapId);
+  if(!c||!w) return;
+  c.width=w.clientWidth;c.height=w.clientHeight;
+}
+
+function render(){
+  renderPlyList();renderEditor();renderABD();renderKpis();
+  renderScriptList();
+  if(viewMode==='opt'||viewMode==='scr') return;
+
+  fitCvs('topCvs','topWrap');fitCvs('botCvs','botWrap');
+  document.getElementById('topBlock').style.display='flex';
+  document.getElementById('botBlock').style.display='flex';
+  if(viewMode==='xsec') document.getElementById('botBlock').style.display='none';
+  if(viewMode==='fin')  document.getElementById('topBlock').style.display='none';
+
+  if(viewMode!=='fin'){
+    document.getElementById('topTitle').textContent='Cross-Section — Ply Stack';
+    drawXsec(document.getElementById('topCvs'));
+  }
+  if(viewMode==='polar'){
+    document.getElementById('botTitle').textContent=`Polar — Ply ${selPly+1}`;
+    drawPolar(document.getElementById('botCvs'));
+  } else if(viewMode!=='xsec'){
+    document.getElementById('botTitle').textContent='Fin Planform + Fiber Orientation';
+    drawFin(document.getElementById('botCvs'));
+  }
+  if(viewMode==='fin'){
+    document.getElementById('botTitle').textContent='Fin Planform + Fiber Orientation';
+    drawFin(document.getElementById('botCvs'));
+  }
+}
+
+document.getElementById('topCvs').addEventListener('click',e=>{
+  const cvs=document.getElementById('topCvs');
+  const rect=cvs.getBoundingClientRect();
+  const mx=e.clientX-rect.left,my=e.clientY-rect.top;
+  if(!cvs._regions) return;
+  for(const r of cvs._regions){if(mx>=r.x0&&mx<=r.x1&&my>=r.y0&&my<=r.y1){selPly=r.idx;render();break;}}
+});
+
+const ro=new ResizeObserver(()=>render());
+ro.observe(document.querySelector('.viz-panel'));
+window.addEventListener('resize',render);
+render();
+</script>
+</body>
+</html>

@@ -1,0 +1,264 @@
+"""
+flutterEstimate_v3.py  —  FalconLAUNCH VI Fin Flutter Boundary Analysis
+========================================================================
+Theory  : NACA TN 4197 (Martin 1958), Ackeret (NACA TM 317, 1925),
+          sweep correction from Bisplinghoff/Ashley/Halfman (1955)
+Pipeline: inplaneG_v5 JSON → ISA atmosphere → subsonic → supersonic
+          → sweep-corrected flutter speed → FSF vs max-q condition
+
+Usage
+-----
+  python3 flutterEstimate_v3.py                          # defaults
+  python3 flutterEstimate_v3.py --json laminate.json     # from inplaneG pipeline
+  python3 flutterEstimate_v3.py --d66 205.96             # manual D66 [N.m]
+  python3 flutterEstimate_v3.py --altitude 1462 --mach 1.942
+  python3 flutterEstimate_v3.py --sweep-table            # full altitude sweep table
+
+References
+----------
+[1] Martin, H.C. NACA TN 4197 (1958)
+[2] Ackeret, J.   NACA TM 317  (1925)
+[3] Bisplinghoff, Ashley & Halfman. Aeroelasticity (1955) Sec 5.5
+[4] AIAA S-080 (1999); MIL-A-8870C (1993)
+"""
+import math, json, argparse
+
+# ─── CLI ────────────────────────────────────────────────────────────────────
+def parse_args():
+    p = argparse.ArgumentParser(description="FalconLAUNCH VI Flutter v3")
+    p.add_argument("--json",        type=str,   default=None)
+    p.add_argument("--d66",         type=float, default=None,  help="D66 [N.m]")
+    p.add_argument("--t",           type=float, default=None,  help="thickness [mm]")
+    p.add_argument("--altitude",    type=float, default=1462.0,help="max-q altitude [m]")
+    p.add_argument("--velocity",    type=float, default=None,  help="rocket speed [m/s]")
+    p.add_argument("--mach",        type=float, default=1.942, help="rocket Mach")
+    p.add_argument("--span",        type=float, default=0.160, help="semi-span [m]")
+    p.add_argument("--cr",          type=float, default=0.300, help="root chord [m]")
+    p.add_argument("--ct",          type=float, default=0.150, help="tip chord [m]")
+    p.add_argument("--sweep",       type=float, default=57.4,  help="LE sweep [deg]")
+    p.add_argument("--sweep-off",   action="store_true")
+    p.add_argument("--super-off",   action="store_true")
+    p.add_argument("--fsf-req",     type=float, default=1.50)
+    p.add_argument("--sweep-table", action="store_true")
+    return p.parse_args()
+
+# ─── ISA ATMOSPHERE ─────────────────────────────────────────────────────────
+def isa(h):
+    """ICAO ISA troposphere (0-11 km). Returns rho, p, T, a."""
+    T0, p0, L, g, R, gam = 288.15, 101325.0, 0.0065, 9.80665, 287.058, 1.4
+    T   = T0 - L * h
+    p   = p0 * (T / T0) ** (g / (R * L))
+    rho = p / (R * T)
+    a   = math.sqrt(gam * R * T)
+    return rho, p, T, a
+
+# ─── FIN GEOMETRY ───────────────────────────────────────────────────────────
+def fin_ar(b, cr, ct):
+    return b**2 / (0.5*(cr+ct)*b)
+
+def fin_mac(b, cr, ct):
+    lam = ct/cr
+    return cr * (2/3) * (1 + lam + lam**2) / (1 + lam)
+
+# ─── FLUTTER CHAIN ──────────────────────────────────────────────────────────
+def flutter_naca4197(G_eff, rho, t, b, AR, tc):
+    """
+    NACA TN 4197 subsonic flutter speed.
+
+    Physical model
+    --------------
+    Torsional restoring work = aerodynamic forcing work at critical speed.
+    For a uniform trapezoidal panel the result is:
+
+        V_f = sqrt( G_eff * t^3 / (rho * b^2 * K) ) * (tc_ref/tc)^0.5
+
+    K = aerodynamic influence factor (NACA 4197 Table 2, interpolated).
+    tc correction accounts for aerodynamic coupling scaling with t/c.
+
+    Parameters
+    ----------
+    G_eff : float  12*D66/t^3 [Pa]  — bending-equiv. torsional modulus
+    rho   : float  air density [kg/m3]
+    t     : float  fin thickness [m]
+    b     : float  semi-span [m]
+    AR    : float  aspect ratio
+    tc    : float  thickness/chord ratio
+    """
+    K  = 0.65 * (1.0 + 0.10*(AR - 1.0))
+    K  = max(K, 0.40)
+    V2 = G_eff * t**3 / (rho * b**2 * K)
+    Vf = math.sqrt(max(V2, 0.0))
+    tc_ref = 0.02
+    if tc > 0:
+        Vf *= (tc_ref / tc)**0.5
+    return Vf
+
+def ackeret_factor(M):
+    """
+    Supersonic flutter speed amplification factor (Ackeret aerodynamics).
+
+    Ratio of subsonic to supersonic aerodynamic coupling:
+        sub:   CL_alpha = 2*pi,     e = 0.25*c  (quarter-chord AC)
+        super: CL_alpha = 4/sqrt(M^2-1),  e = 0.10*c  (Ackeret AC)
+
+    Factor = sqrt( (2*pi * 0.25) / (4/sqrt(M^2-1) * 0.10) )
+           = sqrt( (pi/2) * sqrt(M^2-1) / 0.40 )
+    """
+    if M <= 1.0:
+        return 1.0
+    e_sub, e_sup = 0.25, 0.10
+    cl_sub  = 2.0 * math.pi
+    cl_sup  = 4.0 / math.sqrt(M**2 - 1.0)
+    return math.sqrt((cl_sub * e_sub) / (cl_sup * e_sup))
+
+def sweep_factor(sweep_deg):
+    """
+    Sweep-corrected flutter speed factor: V_swept = V_unswept / sqrt(cos Lambda).
+
+    Physical basis: reduced effective AR in streamwise direction lowers
+    aerodynamic coupling, raising flutter speed.
+    """
+    if sweep_deg <= 0:
+        return 1.0
+    return 1.0 / math.sqrt(math.cos(math.radians(sweep_deg)))
+
+def compute_flutter(D66, t_mm, b, cr, ct, sweep_deg,
+                    h, V_rocket=None, M_rocket=None,
+                    do_sweep=True, do_super=True):
+    t = t_mm * 1e-3
+    rho, p, T, a = isa(h)
+    if V_rocket is None:
+        V_rocket = M_rocket * a
+    else:
+        M_rocket = V_rocket / a
+
+    q    = 0.5 * rho * V_rocket**2
+    AR   = fin_ar(b, cr, ct)
+    mac  = fin_mac(b, cr, ct)
+    tc   = t / mac
+    Geff = 12.0 * D66 / t**3
+
+    # Step 1 — NACA 4197 subsonic
+    Vf1   = flutter_naca4197(Geff, rho, t, b, AR, tc)
+    Mf1   = Vf1 / a
+    f_sup = ackeret_factor(M_rocket) if do_super else 1.0
+    Vf2   = Vf1 * f_sup
+    Mf2   = Vf2 / a
+    f_sw  = sweep_factor(sweep_deg) if do_sweep else 1.0
+    Vf3   = Vf2 * f_sw
+    Mf3   = Vf3 / a
+    FSF   = Vf3 / V_rocket
+
+    return dict(
+        h=h, rho=rho, T=T, p=p, a=a,
+        V_rocket=V_rocket, M_rocket=M_rocket, q=q,
+        AR=AR, mac=mac, tc=tc, Geff=Geff,
+        Vf1=Vf1, Mf1=Mf1, f_sup=f_sup,
+        Vf2=Vf2, Mf2=Mf2, f_sw=f_sw,
+        Vf3=Vf3, Mf3=Mf3, FSF=FSF,
+    )
+
+# ─── REPORT ─────────────────────────────────────────────────────────────────
+L72 = "=" * 72
+
+def report(r, D66, t_mm, cr, ct, b, sweep, fsf_req,
+           do_sweep, do_super, src):
+    print(L72)
+    print("  FIN FLUTTER ANALYSIS  —  FalconLAUNCH VI  [flutterEstimate_v3.py]")
+    print(L72)
+    if src: print(f"  Laminate file : {src}  (tailored D66, β=20°, conservative)")
+    print(f"  D66  = {D66:.4f} N.m     G_eff = {r['Geff']/1e9:.4f} GPa")
+    print(f"  t    = {t_mm:.4f} mm")
+    print()
+    print(f"  FIN GEOMETRY")
+    print(f"    cr = {cr*1e3:.1f} mm   ct = {ct*1e3:.1f} mm   b = {b*1e3:.1f} mm")
+    print(f"    Λ  = {sweep:.1f} deg   AR = {r['AR']:.4f}   MAC = {r['mac']*1e3:.2f} mm")
+    print(f"    t/c = {r['tc']:.4f}  ({r['tc']*100:.2f}%)")
+    print()
+    print(f"  ISA ATMOSPHERE  h = {r['h']:.1f} m")
+    print(f"    ρ = {r['rho']:.4f} kg/m³   T = {r['T']:.2f} K   a = {r['a']:.2f} m/s")
+    print(f"    p = {r['p']/1e3:.3f} kPa    q = {r['q']/1e3:.3f} kPa")
+    print()
+    print(f"  ROCKET  Vr = {r['V_rocket']:.1f} m/s   M = {r['M_rocket']:.4f}")
+    print()
+    print(f"  FLUTTER BOUNDARY CHAIN")
+    print(f"    [1] NACA TN 4197 (subsonic)     : Vf = {r['Vf1']:.1f} m/s   Mf = {r['Mf1']:.3f}")
+    if do_super:
+        print(f"    [2] Ackeret supersonic (M={r['M_rocket']:.3f}) : "
+              f"×{r['f_sup']:.4f}  → Vf = {r['Vf2']:.1f} m/s   Mf = {r['Mf2']:.3f}")
+    else:
+        print(f"    [2] Supersonic correction : DISABLED")
+    if do_sweep:
+        print(f"    [3] Sweep correction (Λ={sweep:.1f}°)  : "
+              f"×{r['f_sw']:.4f}  → Vf = {r['Vf3']:.1f} m/s   Mf = {r['Mf3']:.3f}")
+    else:
+        print(f"    [3] Sweep correction : DISABLED")
+    print()
+    margin = (r['FSF']/fsf_req - 1.0)*100
+    status = "PASS ✓" if r['FSF'] >= fsf_req else "FAIL ✗"
+    print(f"  FLUTTER SAFETY FACTOR")
+    print(f"    V_flutter = {r['Vf3']:.1f} m/s   V_rocket = {r['V_rocket']:.1f} m/s")
+    print(f"    FSF = {r['FSF']:.4f}   [{status}]   required ≥ {fsf_req:.2f}   margin = {margin:+.1f}%")
+    print()
+    if r['FSF'] >= fsf_req:
+        print(f"  ✓  Flutter boundary ({r['Vf3']:.0f} m/s) clears flight speed ({r['V_rocket']:.0f} m/s)")
+        print(f"     by {margin:.1f}%.  Laminate is aeroelastically safe at max-q.")
+    else:
+        print(f"  ✗  Insufficient flutter margin. Increase D66 (more ±45 plies)")
+        print(f"     or reduce fin span. Target: V_flutter ≥ {r['V_rocket']*fsf_req:.0f} m/s")
+
+def altitude_table(D66, t_mm, b, cr, ct, sweep, M0,
+                   do_sweep, do_super, fsf_req):
+    print(f"\n{L72}")
+    print(f"  ALTITUDE SWEEP  (M_rocket = {M0:.3f} constant)")
+    print(L72)
+    print(f"  {'h[m]':>6}  {'rho':>8}  {'a[m/s]':>7}  {'Vr[m/s]':>8}  "
+          f"{'Vf[m/s]':>8}  {'Mf':>6}  {'FSF':>6}  Status")
+    print(f"  {'-'*70}")
+    for h in range(0, 4001, 250):
+        rho, _, _, a = isa(h)
+        Vr = M0 * a
+        r = compute_flutter(D66, t_mm, b, cr, ct, sweep, h,
+                            V_rocket=Vr, do_sweep=do_sweep, do_super=do_super)
+        ok  = "PASS" if r['FSF'] >= fsf_req else "FAIL"
+        tag = " ← max-q" if abs(h-1462) < 130 else ""
+        print(f"  {h:>6d}  {rho:>8.4f}  {a:>7.2f}  {Vr:>8.1f}  "
+              f"{r['Vf3']:>8.1f}  {r['Mf3']:>6.3f}  {r['FSF']:>6.3f}  {ok}{tag}")
+
+# ─── MAIN ───────────────────────────────────────────────────────────────────
+def main():
+    args = parse_args()
+    D66, t_mm, src = None, None, None
+
+    if args.json:
+        with open(args.json) as f:
+            lam = json.load(f)
+        D66  = lam['tailored_beta20']['D66_Nm']
+        t_mm = lam['tailored_beta20']['t_total_mm']
+        src  = args.json
+
+    if args.d66 is not None: D66  = args.d66
+    if args.t   is not None: t_mm = args.t
+    if D66  is None: D66  = 205.96;  print(f"  Default D66 = {D66} N.m")
+    if t_mm is None: t_mm = 5.356;   print(f"  Default t   = {t_mm} mm")
+
+    do_sweep = not args.sweep_off
+    do_super = not args.super_off
+    sweep    = 0.0 if args.sweep_off else args.sweep
+
+    r = compute_flutter(D66, t_mm, args.span, args.cr, args.ct, sweep,
+                        args.altitude,
+                        V_rocket=args.velocity, M_rocket=args.mach,
+                        do_sweep=do_sweep, do_super=do_super)
+    print()
+    report(r, D66, t_mm, args.cr, args.ct, args.span, sweep,
+           args.fsf_req, do_sweep, do_super, src)
+
+    if args.sweep_table:
+        altitude_table(D66, t_mm, args.span, args.cr, args.ct, sweep,
+                       r['M_rocket'], do_sweep, do_super, args.fsf_req)
+
+    print(f"\n{L72}")
+
+if __name__ == "__main__":
+    main()
