@@ -45,6 +45,7 @@ def parse_args():
 # ─── ISA ATMOSPHERE ─────────────────────────────────────────────────────────
 def isa(h):
     """ICAO ISA troposphere (0-11 km). Returns rho, p, T, a."""
+    assert 0 <= h <= 11000, f"ISA troposphere only valid 0–11 km, got {h} m"  # ERRORS.md F-5
     T0, p0, L, g, R, gam = 288.15, 101325.0, 0.0065, 9.80665, 287.058, 1.4
     T   = T0 - L * h
     p   = p0 * (T / T0) ** (g / (R * L))
@@ -83,7 +84,18 @@ def flutter_naca4197(G_eff, rho, t, b, AR, tc):
     b     : float  semi-span [m]
     AR    : float  aspect ratio
     tc    : float  thickness/chord ratio
+
+    Note
+    ----
+    D16 bend-twist coupling is not included. For β=20° (D16<0, washout), the
+    true flutter speed is higher than computed — conservative. For β>45°
+    (D16>0, washin), this approach is non-conservative. See ERRORS.md F-6.
+    Reference: Weisshaar (1981) J. Aircraft 18(8):669-676
     """
+    # K: single-variable linear approximation; taper ratio lambda is NOT included.
+    # WARNING (ERRORS.md F-4): unvalidated against NACA TN 4197 Table 2 at
+    # design point AR=0.711, lambda=0.5. Validation requires 2D (AR, lambda)
+    # bilinear interpolation from Table 2 — [Martin, NACA TN 4197, 1958 Table 2].
     K  = 0.65 * (1.0 + 0.10*(AR - 1.0))
     K  = max(K, 0.40)
     V2 = G_eff * t**3 / (rho * b**2 * K)
@@ -93,34 +105,52 @@ def flutter_naca4197(G_eff, rho, t, b, AR, tc):
         Vf *= (tc_ref / tc)**0.5
     return Vf
 
-def ackeret_factor(M):
+def ackeret_factor(M, x_ea=0.40):
     """
     Supersonic flutter speed amplification factor (Ackeret aerodynamics).
 
-    Ratio of subsonic to supersonic aerodynamic coupling:
-        sub:   CL_alpha = 2*pi,     e = 0.25*c  (quarter-chord AC)
-        super: CL_alpha = 4/sqrt(M^2-1),  e = 0.10*c  (Ackeret AC)
+    Ratio of subsonic-to-supersonic aerodynamic torsional coupling, computed
+    as moment arms about the fin elastic axis x_ea (fraction of chord):
 
-    Factor = sqrt( (2*pi * 0.25) / (4/sqrt(M^2-1) * 0.10) )
-           = sqrt( (pi/2) * sqrt(M^2-1) / 0.40 )
+        sub:   CL_alpha = 2*pi,             AC at 0.25c (subsonic thin airfoil)
+        super: CL_alpha = 4/sqrt(M^2-1),    AC at 0.50c (Ackeret symmetric airfoil)
+
+        e_sub = x_ea - 0.25   moment arm, sub  AC to EA
+        e_sup = 0.50 - x_ea   moment arm, super AC to EA
+
+        Factor = sqrt( (CL_sub * e_sub) / (CL_sup * e_sup) )
+
+    Parameters
+    ----------
+    M    : float  Mach number at the flutter condition (M > 1 for supersonic branch)
+    x_ea : float  elastic axis location as fraction of chord (default 0.40c)
+
+    References
+    ----------
+    # Eq. 5.5 — moment arm formulation [Bisplinghoff, Ashley & Halfman, 1955 §5.5]
+    # Ackeret AC at 0.50c for symmetric thin airfoil — [Ackeret, NACA TM 317, 1925]
     """
     if M <= 1.0:
         return 1.0
-    e_sub, e_sup = 0.25, 0.10
-    cl_sub  = 2.0 * math.pi
-    cl_sup  = 4.0 / math.sqrt(M**2 - 1.0)
+    e_sub = x_ea - 0.25          # moment arm: subsonic  AC (0.25c) to EA — [BAH 1955 §5.5]
+    e_sup = 0.50 - x_ea          # moment arm: supersonic AC (0.50c) to EA — [Ackeret, NACA TM 317]
+    cl_sub  = 2.0 * math.pi      # subsonic lift slope [/rad] — thin-airfoil theory
+    cl_sup  = 4.0 / math.sqrt(M**2 - 1.0)  # Ackeret lift slope — [NACA TM 317 Eq. 16]
     return math.sqrt((cl_sub * e_sub) / (cl_sup * e_sup))
 
 def sweep_factor(sweep_deg):
     """
-    Sweep-corrected flutter speed factor: V_swept = V_unswept / sqrt(cos Lambda).
+    Sweep-corrected flutter speed factor: V_swept = V_unswept / cos(Lambda).
 
-    Physical basis: reduced effective AR in streamwise direction lowers
-    aerodynamic coupling, raising flutter speed.
+    Dynamic pressure at flutter scales as cos²(Λ), so flutter speed scales
+    as cos(Λ). The correction factor is therefore 1/cos(Λ).
+
+    # Eq. 5.5 — [Bisplinghoff, Ashley & Halfman, 1955 §5.5]
+    # q_flutter ∝ cos²(Λ)  =>  Vf ∝ cos(Λ)  =>  factor = 1/cos(Λ)
     """
     if sweep_deg <= 0:
         return 1.0
-    return 1.0 / math.sqrt(math.cos(math.radians(sweep_deg)))
+    return 1.0 / math.cos(math.radians(sweep_deg))  # Eq. 5.5 — [BAH 1955 §5.5]
 
 def compute_flutter(D66, t_mm, b, cr, ct, sweep_deg,
                     h, V_rocket=None, M_rocket=None,
@@ -141,7 +171,23 @@ def compute_flutter(D66, t_mm, b, cr, ct, sweep_deg,
     # Step 1 — NACA 4197 subsonic
     Vf1   = flutter_naca4197(Geff, rho, t, b, AR, tc)
     Mf1   = Vf1 / a
-    f_sup = ackeret_factor(M_rocket) if do_super else 1.0
+
+    # Step 2 — Ackeret supersonic correction at self-consistent flutter Mach
+    # ERROR F-2 fix: evaluate ackeret_factor at the flutter Mach Mf, not at
+    # M_rocket (flight Mach). Solve Mf = Mf1 * ackeret_factor(Mf) by fixed-
+    # point iteration until |Mf_new - Mf| < 1e-6.
+    # Reference: [Bisplinghoff, Ashley & Halfman, 1955 §5.5]
+    if do_super:
+        Mf_iter = Mf1
+        for _ in range(50):
+            f_sup_iter = ackeret_factor(Mf_iter)
+            Mf_new = Mf1 * f_sup_iter
+            if abs(Mf_new - Mf_iter) < 1e-6:
+                break
+            Mf_iter = Mf_new
+        f_sup = f_sup_iter
+    else:
+        f_sup = 1.0
     Vf2   = Vf1 * f_sup
     Mf2   = Vf2 / a
     f_sw  = sweep_factor(sweep_deg) if do_sweep else 1.0
