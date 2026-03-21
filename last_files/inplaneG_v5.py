@@ -97,10 +97,14 @@ def material_props(Vf):
     t_GA = FAW_GA90R / (Vf * rho_f)
 
     E1_GA = 0.5 * (E1 + E2) * kc   # cross-ply average + crimp
+    # nu12 for balanced woven [0/90]: CLT cross-ply average of UD plies
+    # nu12_woven = 2*nu12_UD * Q12 / (Q11+Q22) ≈ 2*nu12_UD*E2 / (E1+E2)
+    # Derivation: Jones (1999) §2 CLT applied to [0/90] stack; ≈ 0.032 at Vf=0.50
+    nu12_GA = 2.0 * nu12 * E2 / (E1 + E2)  # [Jones, Mechanics of Composite Materials, 1999 §2]
     return {
         'ud': (E1, E2, G12, nu12),
-        'DB': (E1,    E2, G12, nu12, t_DB),   # NCF: UD constants
-        'GA': (E1_GA, E1_GA, G12, 0.05, t_GA) # woven: E1=E2
+        'DB': (E1,    E2, G12, nu12, t_DB),       # NCF: UD constants
+        'GA': (E1_GA, E1_GA, G12 * kc, nu12_GA, t_GA)  # woven: E1=E2; kc on G12 — [Naik & Shembekar 1992]; nu12 — [Jones 1999]
     }
 
 
@@ -345,7 +349,9 @@ def print_layup(label, stk, r):
     print(f"    t    = {r['t_total']*1e3:>10.4f} mm")
     # Symmetry check — relative B norm
     b_max = max(abs(r[k]) for k in ('B11','B22','B12','B66','B16','B26'))
-    b_ref = abs(r['A66']) * r['t_total']
+    # Reference: D66/t [N.m/m = N] matches B dimensions [N] — dimensionally appropriate.
+    # Using A66*t overestimates reference for thick laminates. ERRORS.md I-3.
+    b_ref = abs(r['D66']) / r['t_total']  # [N.m] / [m] = [N]
     b_rel = b_max / b_ref if b_ref > 0 else b_max
     ok    = b_rel < 1e-5
     print(f"\n  SYMMETRY CHECK (B=0 for symmetric laminate)")
