@@ -1,0 +1,42 @@
+{
+  "tool": "inplaneG_v5",
+  "inputs": {
+    "Vf": 0.6,
+    "layup": "ar1",
+    "target_thickness_mm": 6.0
+  },
+  "material": {
+    "fiber": "T700 12K",
+    "matrix": "Epoxy LY1564",
+    "Vf": 0.6,
+    "E1_ud_GPa": 139.4,
+    "E2_ud_GPa": 8.298013245033111,
+    "G12_ud_GPa": 4.402037250138514,
+    "nu12_ud": 0.26,
+    "t_DB_single_mm": 0.1388888888888889,
+    "t_GA_mm": 0.2796296296296296
+  },
+  "standard_beta0": {
+    "D11_Nm": 1002.0599115637914,
+    "D22_Nm": 1002.0599115637914,
+    "D66_Nm": 351.5273662699882,
+    "D16_Nm": 24.96531163492294,
+    "G_xy_GPa": 15.977941540693408,
+    "G_eff_GPa": 19.529298126110454,
+    "t_total_mm": 6.0
+  },
+  "tailored_beta20": {
+    "D11_Nm": 972.8321004975513,
+    "D22_Nm": 1037.0216724611182,
+    "D66_Nm": 348.660391354445,
+    "D16_Nm": 15.707810593190228,
+    "G_xy_GPa": 18.600059527953846,
+    "G_eff_GPa": 19.370021741913607,
+    "t_total_mm": 6.0
+  },
+  "flutter_input": {
+    "D66_conservative_Nm": 348.660391354445,
+    "t_mm": 6.0,
+    "note": "Use tailored D66 (beta=20) \u2014 conservative lower bound"
+  }
+}

@@ -1,5 +1,5 @@
 """
-inplaneG_v5.py  —  FalconLAUNCH VI Composite Fin Laminate Analysis
+inplaneG_v5.py 
 ====================================================================
 Classical Laminate Theory (CLPT) + Halpin-Tsai Micromechanics
 Aeroelastic tailoring via global beta-rotation (Weisshaar 1981)
@@ -41,7 +41,7 @@ import argparse
 # ============================================================
 def parse_args():
     p = argparse.ArgumentParser(
-        description="FalconLAUNCH VI — CLPT Laminate Analysis v5",
+        description="CLPT Laminate Analysis",
         formatter_class=argparse.RawDescriptionHelpFormatter,
         epilog=__doc__)
     p.add_argument("--vf",        type=float, default=0.50,
@@ -98,8 +98,8 @@ def material_props(Vf):
 
     E1_GA = 0.5 * (E1 + E2) * kc   # cross-ply average + crimp
     # nu12 for balanced woven [0/90]: CLT cross-ply average of UD plies
-    # nu12_woven = 2*nu12_UD * Q12 / (Q11+Q22) ≈ 2*nu12_UD*E2 / (E1+E2)
-    # Derivation: Jones (1999) §2 CLT applied to [0/90] stack; ≈ 0.032 at Vf=0.50
+    # nu12_woven = 2*Q12 / (Q11+Q22) = 2*nu12_UD*E2 / (E1+E2)  [exact]
+    # Derivation: Jones (1999) §2 CLT applied to [0/90] stack; exact (not approx), ≈ 0.032 at Vf=0.50
     nu12_GA = 2.0 * nu12 * E2 / (E1 + E2)  # [Jones, Mechanics of Composite Materials, 1999 §2]
     return {
         'ud': (E1, E2, G12, nu12),
@@ -171,7 +171,7 @@ def build_ABD(stack):
 # ============================================================
 # STACK BUILDERS
 # ============================================================
-_FAB = {"B": "DB", "W": "GA", "DB": "DB", "GA": "GA"}
+_FAB = {"B": "DB", "W": "GA"}
 
 def make_ply(props, fabric, angle):
     e1, e2, g12, nu12, t = props[_FAB[fabric]]
@@ -183,26 +183,20 @@ def make_symmetric(half_desc, beta, props):
     Symmetric balanced laminate from a half-stack descriptor.
 
     half_desc : list of ('B'|'W', base_angle_deg)
-    beta      : global tailoring rotation [deg]
-
-    Stacking convention
-    -------------------
-    Top half (midplane outward): angle = base + beta
-    Bottom half (reversed):
-      For 'B' (NCF +-45): mirror by negating the base angle before adding beta
-                          => each +45 at z=+h has a -45 at z=-h => D16=0 at beta=0
-      For 'W' (woven E1=E2): angle = base + beta (rotation-neutral for woven)
+                NCF 'B' entries must appear as explicit ±45 pairs so the
+                laminate is balanced (A16=A26=0). The bottom half is the
+                exact mirror of the top (reversed order, same angles), giving
+                B=0 by construction.
+    beta      : global tailoring rotation [deg] — applied uniformly to all plies.
 
     Physics (Weisshaar 1981):
-      beta=0  => D16=0 (no coupling)
-      beta=20 => D16<0 (washout for aft-swept fin — stabilising)
-      beta=30 => |D16| maximum
-      beta=45 => D16=0 (symmetry zero)
-      beta>45 => D16 reverses sign (washin — destabilising)
+      beta=0  => D16≠0 from ±45 z-asymmetry within each pair
+      beta=20 => |D16| amplified — washout for aft-swept fin (stabilising)
+      beta=45 => D16=0 (NCF rotates to 0°/90°; woven rotation-neutral at E1=E2)
+      beta>45 => D16 reverses sign — wash-in, destabilising
     """
     top = [(fk, ang + beta) for fk, ang in half_desc]
-    bot = [('B', -ang + beta) if fk == 'B' else ('W', ang + beta)
-           for fk, ang in reversed(half_desc)]
+    bot = [(fk, ang + beta) for fk, ang in reversed(half_desc)]
     return [make_ply(props, fk, ang) for fk, ang in top + bot]
 
 
@@ -219,40 +213,40 @@ def scale_thickness(stack, target_m):
 LAYUPS = {
     # AR1 All-Rounder: +-45 NCF outer skins + 0/90 woven backbone
     'ar1': [
-        ('B',+45),('B',+45),
+        ('B',+45),('B',-45),
         ('W',  0),('W',  0),
-        ('B',+45),('B',+45),
+        ('B',+45),('B',-45),
         ('W',  0),
-        ('B',+45),('B',+45),
+        ('B',+45),('B',-45),
         ('W',  0),('W',  0),
     ],
     # Torsion-biased: more NCF for D66
     'more_db': [
-        ('B',+45),('B',+45),('B',+45),('B',+45),
+        ('B',+45),('B',-45),('B',+45),('B',-45),
         ('W',  0),('W',  0),
-        ('B',+45),('B',+45),
+        ('B',+45),('B',-45),
         ('W',  0),
-        ('B',+45),('B',+45),
+        ('B',+45),('B',-45),
         ('W',  0),
-        ('B',+45),('B',+45),
+        ('B',+45),('B',-45),
     ],
     # Bending-biased: more 0/90 woven for D11
     'more_ga': [
         ('W',  0),('W',  0),
-        ('B',+45),('B',+45),
+        ('B',+45),('B',-45),
         ('W',  0),('W',  0),
-        ('B',+45),('B',+45),
+        ('B',+45),('B',-45),
         ('W',  0),('W',  0),
-        ('B',+45),('B',+45),
+        ('B',+45),('B',-45),
         ('W',  0),('W',  0),
     ],
     # Equal mix
     'equal': [
-        ('B',+45),('B',+45),
+        ('B',+45),('B',-45),
         ('W',  0),('W',  0),
-        ('B',+45),('B',+45),
+        ('B',+45),('B',-45),
         ('W',  0),('W',  0),
-        ('B',+45),('B',+45),
+        ('B',+45),('B',-45),
         ('W',  0),('W',  0),
     ],
 }
@@ -299,13 +293,13 @@ def print_beta_sweep(half_desc, beta_list, props, target_t):
             stk = scale_thickness(stk, target_t * 1e-3)
         r = build_ABD(stk)
         note = ""
-        if   b == 0:                         note = "standard — D16=0"
+        if   b == 0:                         note = "standard"
         elif b == 15:                        note = "tailoring onset"
         elif b == 20:                        note = "RECOMMENDED — washout"
         elif b == 30:                        note = "peak |D16|"
         elif b == 45:                        note = "D16=0 (symmetry zero)"
         elif abs(b - SWEEP_DEG) < 1.5:      note = f"aligned with sweep ({SWEEP_DEG} deg) — DESTABILISING"
-        elif b == 90:                        note = "identical to beta=0 for this layup"
+        elif b == 90:                        note = "same D66 as beta=0; D16 sign reversed"
         print(f"  {b:>6.1f}  {r['D11']:>9.2f}  {r['D22']:>9.2f}  {r['D66']:>9.2f}  "
               f"{r['D16']:>10.4f}  {r['G_xy']/1e9:>9.4f}  {r['t_total']*1e3:>6.3f}  {note}")
         results.append({'beta': b, **r})
