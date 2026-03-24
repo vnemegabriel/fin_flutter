@@ -2,7 +2,7 @@
 ._*
 
 # OUTPUT
-.json
+*.json
 
 # IDE
 .vscode/
