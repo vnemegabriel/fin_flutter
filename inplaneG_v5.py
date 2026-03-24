@@ -264,7 +264,7 @@ def print_material(Vf, props):
     _, _, _, _, t_DB  = props['DB']
     E1g, _, _, _, t_GA = props['GA']
     print(W)
-    print("  MATERIAL CARDS  —  FalconLAUNCH VI  [inplaneG_v5.py]")
+    print("  MATERIAL CARDS")
     print(W)
     print(f"\n  Vf = {Vf:.2f}")
     print(f"\n  UD T700/Epoxy (Halpin-Tsai micromechanics)")
@@ -314,7 +314,7 @@ def print_beta_sweep(half_desc, beta_list, props, target_t):
     return results
 
 
-def print_layup(label, stk, r):
+# def print_layup(label, stk, r):
     print(f"\n{W}")
     print(f"  LAYUP REPORT  —  {label}")
     print(W)
@@ -352,20 +352,6 @@ def print_layup(label, stk, r):
     print(f"    max|B_ij| = {b_max:.2e} N   relative = {b_rel:.2e}  "
           f"{'OK' if ok else 'FAIL — check stacking'}")
 
-
-def print_export(r_std, r_tail):
-    print(f"\n{W}")
-    print(f"  EXPORT  —  paste into flutterEstimate_v3.py  or use --json")
-    print(W)
-    print(f"    D66_standard = {r_std['D66']:.4f}  # beta=0,  t={r_std['t_total']*1e3:.3f} mm")
-    print(f"    D66_tailored = {r_tail['D66']:.4f}  # beta=20, t={r_tail['t_total']*1e3:.3f} mm")
-    print(f"    G_eff_std    = {r_std['G_eff']/1e9:.4f} GPa")
-    print(f"    G_eff_tail   = {r_tail['G_eff']/1e9:.4f} GPa")
-    print(f"    t_total_mm   = {r_std['t_total']*1e3:.4f}")
-    print(f"\n  Use D66_tailored for conservative (lower-bound) flutter margin.")
-    print(f"  FSF requirement: >= 1.50  (AIAA S-080 / MIL-A-8870C)")
-
-
 # ============================================================
 # MAIN
 # ============================================================
@@ -388,21 +374,18 @@ def main():
 
     # Detailed layup reports for beta=0 and beta=20
     reports = {}
-    for label, b in [("STANDARD  beta=0 deg", 0.0),
-                     ("TAILORED  beta=+20 deg", 20.0)]:
+    for label, b in [("STANDARD  beta=0 deg",0.0),
+                     (f"TAILORED  beta={args.beta} deg", args.beta)]:
         stk = make_symmetric(half_desc, b, props)
         if target_t:
             stk = scale_thickness(stk, target_t * 1e-3)
         r = build_ABD(stk)
         reports[b] = (stk, r)
-        if not quiet:
-            print_layup(label, stk, r)
+        # if not quiet:
+            # print_layup(label, stk, r)
 
     r_std  = reports[0.0][1]
-    r_tail = reports[20.0][1]
-
-    if not quiet:
-        print_export(r_std, r_tail)
+    r_tail = reports[args.beta][1]
 
     # JSON export
     if args.json:
@@ -426,7 +409,7 @@ def main():
                 "G_eff_GPa": r_std['G_eff']/1e9,
                 "t_total_mm": r_std['t_total']*1e3,
             },
-            "tailored_beta20": {
+            f"tailored_beta{args.beta}": {
                 "D11_Nm": r_tail['D11'], "D22_Nm": r_tail['D22'],
                 "D66_Nm": r_tail['D66'], "D16_Nm": r_tail['D16'],
                 "G_xy_GPa": r_tail['G_xy']/1e9,
