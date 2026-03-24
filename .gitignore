@@ -1,6 +1,9 @@
 # Ignore AppleDouble (resource fork) files
 ._*
 
+# OUTPUT
+.json
+
 # IDE
 .vscode/
 .idea/
