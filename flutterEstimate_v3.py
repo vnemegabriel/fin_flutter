@@ -145,17 +145,27 @@ def ackeret_factor(M, x_ea=0.40):
 
 def sweep_factor(sweep_deg):
     """
-    Sweep-corrected flutter speed factor: V_swept = V_unswept / cos(Lambda).
+    Sweep-corrected flutter speed factor.
 
-    Dynamic pressure at flutter scales as cos²(Λ), so flutter speed scales
-    as cos(Λ). The correction factor is therefore 1/cos(Λ).
+    Aft sweep (Λ > 0): effective chordwise q reduces to q·cos²(Λ), so the
+    free-stream flutter speed rises:  V_f,swept = V_f,unswept / cos(Λ)  →  factor > 1.
+
+    Forward sweep (Λ < 0): destabilising — the same q-reduction argument inverts
+    (wash-in aeroelastic coupling), so  V_f,swept = V_f,unswept · cos(|Λ|)  →  factor < 1.
+    NOTE: this is a first-order penalty only; forward-swept panels may diverge
+    before they flutter — use with caution.
 
     # Eq. 5.5 — [Bisplinghoff, Ashley & Halfman, 1955 §5.5]
-    # q_flutter ∝ cos²(Λ)  =>  Vf ∝ cos(Λ)  =>  factor = 1/cos(Λ)
+    # q_flutter ∝ cos²(Λ)  =>  Vf ∝ cos(Λ)  =>  factor = 1/cos(Λ) for aft sweep
     """
-    if sweep_deg <= 0:
+    if sweep_deg == 0.0:
         return 1.0
-    return 1.0 / math.cos(math.radians(sweep_deg))  # Eq. 5.5 — [BAH 1955 §5.5]
+    if sweep_deg > 0:
+        # aft sweep — stabilising
+        return 1.0 / math.cos(math.radians(sweep_deg))   # Eq. 5.5 — [BAH 1955 §5.5]
+    else:
+        # forward sweep — destabilising; factor < 1
+        return math.cos(math.radians(abs(sweep_deg)))     # Eq. 5.5 — [BAH 1955 §5.5]
 
 def compute_flutter(D66, t_mm, b, cr, ct, sweep_deg,
                     h, V_rocket=None, M_rocket=None,
