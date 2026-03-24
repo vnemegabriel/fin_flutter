@@ -1,5 +1,5 @@
 """
-flutterEstimate_v3.py  —  FalconLAUNCH VI Fin Flutter Boundary Analysis
+flutterEstimate_v3.py  —  Fin Flutter Boundary Analysis
 ========================================================================
 Theory  : NACA TN 4197 (Martin 1958), Ackeret (NACA TM 317, 1925),
           sweep correction from Bisplinghoff/Ashley/Halfman (1955)
@@ -28,7 +28,7 @@ from fin_flutter.flight_data import read_flight_data
 
 # ─── CLI ────────────────────────────────────────────────────────────────────
 def parse_args():
-    p = argparse.ArgumentParser(description="FalconLAUNCH VI Flutter v3")
+    p = argparse.ArgumentParser(description="Fin Flutter Estimation v3")
     p.add_argument("--json",        type=str,   default=None)
     p.add_argument("--d66",         type=float, default=None,  help="D66 [N.m]")
     p.add_argument("--t",           type=float, default=None,  help="thickness [mm]")
@@ -225,7 +225,7 @@ L72 = "=" * 72
 def report(r, D66, t_mm, cr, ct, b, sweep, fsf_req,
            do_sweep, do_super, src):
     print(L72)
-    print("  FIN FLUTTER ANALYSIS  —  FalconLAUNCH VI  [flutterEstimate_v3.py]")
+    print("  FIN FLUTTER ANALYSIS  [flutterEstimate_v3.py]")
     print(L72)
     if src: print(f"  Laminate file : {src}  (tailored D66, β=20°, conservative)")
     print(f"  D66  = {D66:.4f} N.m     G_eff = {r['Geff']/1e9:.4f} GPa")
