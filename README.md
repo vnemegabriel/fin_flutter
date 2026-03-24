@@ -1,4 +1,4 @@
-# FalconLAUNCH VI Fin Flutter Analysis
+# Fin Flutter Analysis
 
 A comprehensive aeroelastic analysis toolkit for predicting and validating fin flutter behavior in supersonic rocket applications. This project combines classical laminate theory with empirical flutter prediction methods to assess structural stability across the vehicle envelope.
 
@@ -282,5 +282,4 @@ This project is licensed under the **MIT License**. See [LICENSE](LICENSE) for d
 
 ---
 
-**Maintained for FalconLAUNCH VI Project**
 Last Updated: 2026-03-24

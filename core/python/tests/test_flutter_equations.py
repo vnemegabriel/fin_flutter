@@ -42,7 +42,7 @@ fin_ar           = _mod.fin_ar
 fin_mac          = _mod.fin_mac
 compute_flutter  = _mod.compute_flutter
 
-# FalconLAUNCH VI design inputs — single source of truth for all test classes
+# Design inputs — single source of truth for all test classes
 _FL6 = dict(D66=205.96, t_mm=5.356, b=0.160, cr=0.300, ct=0.150,
             sweep_deg=57.4, h=1462.0, M_rocket=1.942)
 
@@ -88,7 +88,7 @@ class TestISA:
         assert abs(T - 216.65) < 1e-6, f"T(11 km) = {T:.6f} K, expected 216.65 K"
 
     def test_design_altitude(self):
-        """h = 1462 m (FalconLAUNCH VI max-q altitude)."""
+        """h = 1462 m (design max-q altitude)."""
         rho, _, T, a = isa(1462)
         T_expected = 288.15 - 0.0065 * 1462          # = 278.647 K
         assert abs(T - T_expected) < 1e-4
@@ -289,7 +289,7 @@ class TestSweepFactor:
 
     def test_design_sweep(self):
         """
-        Λ = 57.4° (FalconLAUNCH VI leading-edge sweep)
+        Λ = 57.4° (design leading-edge sweep)
             cos(57.4°) = cos(1.00180 rad) = 0.53919
             factor = 1 / 0.53919 = 1.8547
         """
@@ -399,7 +399,7 @@ class TestSupersonicIteration:
 # ═══════════════════════════════════════════════════════════════════════════════
 class TestFullPipelineRegression:
     """
-    Full pipeline with FalconLAUNCH VI design inputs.
+    Full pipeline with design inputs.
     Regression values established from first validated run.
 
     Pipeline chain:
