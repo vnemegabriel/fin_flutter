@@ -15,7 +15,7 @@
 .DS_Store
 Thumbs.db
 *.tmp
-.*
+._*
 
 # Python
 __pycache__/
