@@ -284,8 +284,8 @@ def main():
     if args.json:
         with open(args.json) as f:
             lam = json.load(f)
-        D66  = lam['tailored_beta20']['D66_Nm']
-        t_mm = lam['tailored_beta20']['t_total_mm']
+        D66  = lam['tailored_beta']['D66_Nm']
+        t_mm = lam['tailored_beta']['t_total_mm']
         src  = args.json
 
     if args.d66 is not None: D66  = args.d66

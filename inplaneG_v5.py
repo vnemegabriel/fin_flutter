@@ -409,7 +409,7 @@ def main():
                 "G_eff_GPa": r_std['G_eff']/1e9,
                 "t_total_mm": r_std['t_total']*1e3,
             },
-            f"tailored_beta{args.beta}": {
+            f"tailored_beta": {
                 "D11_Nm": r_tail['D11'], "D22_Nm": r_tail['D22'],
                 "D66_Nm": r_tail['D66'], "D16_Nm": r_tail['D16'],
                 "G_xy_GPa": r_tail['G_xy']/1e9,
