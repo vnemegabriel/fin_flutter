@@ -16,6 +16,8 @@
 Thumbs.db
 *.tmp
 ._*
+._.*
+
 
 # Python
 __pycache__/
