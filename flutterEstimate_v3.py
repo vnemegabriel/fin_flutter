@@ -21,7 +21,10 @@ References
 [3] Bisplinghoff, Ashley & Halfman. Aeroelasticity (1955) Sec 5.5
 [4] AIAA S-080 (1999); MIL-A-8870C (1993)
 """
-import math, json, argparse
+import math, json, argparse, sys
+from pathlib import Path
+sys.path.insert(0, str(Path(__file__).parent / "core" / "python"))
+from fin_flutter.flight_data import read_flight_data
 
 # ─── CLI ────────────────────────────────────────────────────────────────────
 def parse_args():
@@ -40,6 +43,8 @@ def parse_args():
     p.add_argument("--super-off",   action="store_true")
     p.add_argument("--fsf-req",     type=float, default=1.50)
     p.add_argument("--sweep-table", action="store_true")
+    p.add_argument("--csv",         type=str,   default=None,
+                   help="flight data CSV; sets --velocity and --altitude from max-velocity row")
     return p.parse_args()
 
 # ─── ISA ATMOSPHERE ─────────────────────────────────────────────────────────
@@ -287,6 +292,14 @@ def main():
     if args.t   is not None: t_mm = args.t
     if D66  is None: D66  = 205.96;  print(f"  Default D66 = {D66} N.m")
     if t_mm is None: t_mm = 5.356;   print(f"  Default t   = {t_mm} mm")
+
+    if args.csv:
+        max_vel, alt_ft = read_flight_data(args.csv)
+        # CSV altitude is in ft; ISA expects metres
+        if args.velocity is None:
+            args.velocity = max_vel
+        if args.altitude == 1462.0:          # still at default — override
+            args.altitude = alt_ft * 0.3048  # ft → m
 
     do_sweep = not args.sweep_off
     do_super = not args.super_off
