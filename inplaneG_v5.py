@@ -314,7 +314,7 @@ def print_beta_sweep(half_desc, beta_list, props, target_t):
     return results
 
 
-# def print_layup(label, stk, r):
+def print_layup(label, stk, r):
     print(f"\n{W}")
     print(f"  LAYUP REPORT  —  {label}")
     print(W)
@@ -372,20 +372,23 @@ def main():
     if not quiet:
         print_beta_sweep(half_desc, beta_list, props, target_t)
 
-    # Detailed layup reports for beta=0 and beta=20
+    # Detailed layup reports — always beta=0 baseline; tailored only when --beta is given
+    beta_pairs = [("STANDARD  beta=0 deg", 0.0)]
+    if args.beta is not None:
+        beta_pairs.append((f"TAILORED  beta={args.beta:.1f} deg", args.beta))
+
     reports = {}
-    for label, b in [("STANDARD  beta=0 deg",0.0),
-                     (f"TAILORED  beta={args.beta} deg", args.beta)]:
+    for label, b in beta_pairs:
         stk = make_symmetric(half_desc, b, props)
         if target_t:
             stk = scale_thickness(stk, target_t * 1e-3)
         r = build_ABD(stk)
         reports[b] = (stk, r)
-        # if not quiet:
-            # print_layup(label, stk, r)
+        if not quiet:
+            print_layup(label, stk, r)
 
     r_std  = reports[0.0][1]
-    r_tail = reports[args.beta][1]
+    r_tail = reports[args.beta][1] if args.beta is not None else r_std
 
     # JSON export
     if args.json:
