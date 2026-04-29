@@ -1,3 +1,7 @@
+% NOTE: This function is not called by the current quasi-steady p-L pipeline.
+% Reserved for a future frequency-domain p-k state-space realisation via
+% rational GAF interpolation (Mayo & Antoulas 2007).  Remove this comment
+% when it is wired into the stability solver.
 function [L, M_loe] = loewnerInterpolation(Q_k, s_vals)
 % loewnerInterpolation  Build Loewner and shifted-Loewner matrices from
 %                       sampled Generalised Aerodynamic Force data.

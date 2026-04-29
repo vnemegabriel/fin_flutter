@@ -105,7 +105,7 @@ function [Bm, Bb, detJ] = getMatricesMB(nodesLoc, xi, eta)
     [~, dN_nat] = shapeQ4(xi, eta);
     J = dN_nat * nodesLoc;
     detJ = det(J);
-    dN = inv(J) * dN_nat;
+    dN = J \ dN_nat;
     
     % Membrana (Igual que antes)
     Bm = zeros(3, 8);
@@ -131,7 +131,7 @@ function [Bs, detJ] = getMatrixS(nodesLoc, xi, eta)
     [N, dN_nat] = shapeQ4(xi, eta);
     J = dN_nat * nodesLoc;
     detJ = det(J);
-    dN = inv(J) * dN_nat;
+    dN = J \ dN_nat;
     
     Bs = zeros(2, 12); % 4 nodos * 3 DOFs (w, th_x, th_y)
     for i = 1:4

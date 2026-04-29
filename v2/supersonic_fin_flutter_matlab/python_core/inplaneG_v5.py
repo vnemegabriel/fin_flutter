@@ -67,6 +67,9 @@ def material_props(Vf):
     t_DB = FAW_DB300 / 2.0 / (Vf * rho_f)
     t_GA = FAW_GA90R / (Vf * rho_f)
 
+    # Composite density: rule of mixtures  ρ_c = ρ_f·Vf + ρ_m·(1-Vf)
+    rho_c = rho_f * Vf + rho_m_mat * (1.0 - Vf)
+
     E1_GA = 0.5 * (E1 + E2) * kc   # cross-ply average + crimp
     nu12_GA = 2.0 * nu12 * E2 / (E1 + E2) 
     
@@ -202,7 +205,7 @@ D = "-" * 70
 
 def print_material(Vf, props):
     E1, E2, G12, nu12 = props['ud']
-    _, _, _, _, t_DB  = props['DB']
+    _, _, _, _, t_DB   = props['DB']
     E1g, _, _, _, t_GA = props['GA']
     rho_lam = props['rho_lam']
     print(W)
@@ -441,8 +444,8 @@ def main():
 
     # JSON export
     if args.json:
-        E1, E2, G12, nu12 = props['ud']
-        _, _, _, _, t_DB  = props['DB']
+        E1, E2, G12, nu12  = props['ud']
+        _, _, _, _, t_DB   = props['DB']
         E1g, _, _, _, t_GA = props['GA']
 
         def serialize_stack(stk):

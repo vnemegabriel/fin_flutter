@@ -34,7 +34,7 @@ check(length(rho_v) == 4, 'vectorised output length', length(rho_v), 4);
 fprintf('\n');
 
 %% --- Shared structural setup (coarse mesh) ---
-lam    = jsondecode(fileread('../configs/lam.json'));
+lam    = jsondecode(fileread(fullfile(fileparts(mfilename('fullpath')), '..', 'configs', 'lam.json')));
 D      = lam.tailored_beta;
 D_flex = [D.D11_Nm, D.D12_Nm, D.D16_Nm;
           D.D12_Nm, D.D22_Nm, 0;
@@ -62,7 +62,7 @@ fprintf('T3: GAF matrix Q_k at k=0.01 (Mach=2.0, h=4000 m)\n');
 [rho_a, a_a, ~, ~] = aero.isaAtmosphere(4000);
 Mach_test = 2.0;
 q_test    = 0.5 * rho_a * (Mach_test * a_a)^2;
-k_vals    = [0.01, 0.1, 0.5, 1.0];
+k_vals    = [0, 0.01, 0.1, 0.5, 1.0];  % k=0 required by solveFlutterPL divergence analysis
 
 Q_k = aero.pistonTheoryGAF(mesh, Phi_full, Mach_test, q_test, a_a, k_vals, 57.4);
 

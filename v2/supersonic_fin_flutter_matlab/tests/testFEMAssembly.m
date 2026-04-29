@@ -12,7 +12,7 @@ fprintf('=== FEM Assembly Tests ===\n\n');
 PASS = true;
 
 %% --- Shared setup ---
-lam    = jsondecode(fileread('../configs/lam.json'));
+lam    = jsondecode(fileread(fullfile(fileparts(mfilename('fullpath')), '..', 'configs', 'lam.json')));
 D      = lam.tailored_beta;
 D_flex = [D.D11_Nm, D.D12_Nm, D.D16_Nm;
           D.D12_Nm, D.D22_Nm, 0;
