@@ -28,10 +28,13 @@ end
 lam  = jsondecode(fileread(lamFile));
 D    = lam.tailored_beta;
 
-% 3×3 CLT bending stiffness matrix [N·m]  (D26=0 for balanced layup)
+% 3×3 CLT bending stiffness matrix [N·m]
+% D26 is non-zero when beta≠0 (beta rotation unbalances the layup).
+D26 = 0;
+if isfield(D, 'D26_Nm'), D26 = D.D26_Nm; end
 D_flex = [D.D11_Nm, D.D12_Nm, D.D16_Nm;
-          D.D12_Nm, D.D22_Nm, 0;
-          D.D16_Nm, 0,        D.D66_Nm];
+          D.D12_Nm, D.D22_Nm, D26;
+          D.D16_Nm, D26,      D.D66_Nm];
 
 t     = lam.flutter_input.t_mm * 1e-3;       % shell thickness [m]
 rho_m = lam.flutter_input.rho_mat_kgm3;      % material density [kg/m³]
@@ -53,7 +56,7 @@ fprintf('  t=%.2f mm   rho=%.0f kg/m³   E_eff=%.2f GPa\n\n', ...
 %% -----------------------------------------------------------------------
 %% 2. Load flight data → filter supersonic flight points
 %% -----------------------------------------------------------------------
-csvFile = fullfile(fileparts(mfilename('fullpath')), '..', 'data', 'flight_data.csv');
+csvFile = fullfile(fileparts(mfilename('fullpath')), 'data', 'flight_data.csv');
 if ~isfile(csvFile)
     error('flight_data.csv not found at %s', csvFile);
 end
@@ -70,7 +73,8 @@ flightPts = struct([]);
 for i = 1:height(tbl)
     [rho_i, a_i, ~, ~] = aero.isaAtmosphere(h_m(i));
     M_i = V(i) / a_i;
-    if M_i >= 1.0
+    % M >= 1.05 ensures beta = sqrt(M^2-1) >= 0.312; piston theory validity per Lighthill (1953) and NACA TN 4021
+    if M_i >= 1.05
         fp.Mach  = M_i;
         fp.a     = a_i;
         fp.rho   = rho_i;
@@ -90,7 +94,7 @@ if isempty(flightPts)
     error('No supersonic points found in flight_data.csv. Check data file.');
 end
 
-fprintf('Flight data: %d supersonic points  Mach %.2f – %.2f  alt %.0f – %.0f m\n\n', ...
+fprintf('Flight data: %d supersonic points (M >= 1.05)  Mach %.2f – %.2f  alt %.0f – %.0f m\n\n', ...
         numel(flightPts), min([flightPts.Mach]), max([flightPts.Mach]), ...
         min([flightPts.h_m]), max([flightPts.h_m]));
 
@@ -163,6 +167,7 @@ fprintf('done\n\n');
 
 %% -----------------------------------------------------------------------
 %% 7. Flutter / divergence solve over all supersonic flight points
+%% Flutter/divergence logic lives in +stability/solveFlutterPL.m
 %% -----------------------------------------------------------------------
 fprintf('Running p-L flutter solver over %d flight points...\n', numel(flightPts));
 
@@ -360,7 +365,7 @@ yline(1, 'k--', 'LineWidth', 1.5, 'DisplayName', 'Instability onset  (margin = 1
 
 hold off;
 grid on; box on;
-xlabel('Mach number');
+xlabel({'Mach number', 'M \geq 1.05  (piston theory validity cutoff per Lighthill 1953 / NACA TN 4021)'});
 ylabel('Stability margin  q_{critical} / q_{flight}   (> 1 = safe)');
 ylim([0, min(max([fl_plot; div_plot])*1.15, 55)]);
 
@@ -410,7 +415,8 @@ save(fullfile(figDir, 'flutter.mat'), ...
     'V_fl', 'V_div', 'omega_n', 'f_n', 'Phi_full', 'mesh', ...
     'flightPts', 'fp_crit', 'Q_k', 'k_vals', 'flutterResults', ...
     'fl_margin', 'div_margin', 'lam_hat', ...
-    'D_flex', 't', 'rho_m', 'geometry', 'material');
+    'D_flex', 't', 'rho_m', 'geometry', 'material', ...
+    'K', 'freeDOFs', 'fixedDOFs');
 
 fprintf('\nResults saved to results/flutter.mat\n');
 fprintf('Plots saved to results/\n');

@@ -513,7 +513,7 @@ The strain–displacement sub-functions are:
 
 **Purpose**: Recovers internal force/moment resultants (N, M, Q) from the global displacement vector at specified evaluation points within each element.
 
-**Method**: Uses QLQL (Quadrilateral-Linear Quadrilateral-Linear) gradient projection for shear strains (Oñate, 2009), compatible with the selective integration scheme.
+**Method**: Uses QLLL (Quadrilateral-Linear Quadrilateral-Linear) gradient projection for shear strains (Oñate, 2009), compatible with the selective integration scheme.
 
 ### 4.2 Finite Element Module (`+fem/`)
 

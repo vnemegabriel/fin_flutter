@@ -5,7 +5,7 @@ function [Q_k] = pistonTheoryGAF(mesh, Phi, Mach, q_inf, a, k_vals, sweep_deg)
 %
 %   mesh       : FEM mesh struct (.nodes [nN×3], .connect [nE×4])
 %   Phi        : [nDOF × nModes] mode shape matrix (full, including fixed DOFs)
-%   Mach       : flight Mach number (≥ 1.0)
+%   Mach       : flight Mach number (>= 1.05)
 %   q_inf      : dynamic pressure  [Pa]
 %   a          : speed of sound    [m/s]
 %   k_vals     : [1×nK] reduced frequencies  k = ω·b_ref / U
@@ -21,8 +21,10 @@ function [Q_k] = pistonTheoryGAF(mesh, Phi, Mach, q_inf, a, k_vals, sweep_deg)
 %   Sweep correction: effective Mach in the sweep-normal plane
 %     β_eff = sqrt((Mach·cos(Λ))²-1)  (Miles 1959)
 
-if Mach <= 1.0
-    error('pistonTheoryGAF: Mach must be > 1 (supersonic only). Got %.3f', Mach);
+MACH_MIN = 1.05;   % piston theory valid for beta = sqrt(M^2-1) > 0.31
+if Mach < MACH_MIN
+    error('pistonTheoryGAF: M=%.4f below validity threshold M=%.2f. beta=%.4f is too small.', ...
+          Mach, MACH_MIN, sqrt(max(Mach^2-1, 0)));
 end
 
 % Piston-theory compressibility factor.
@@ -52,14 +54,14 @@ end
 
 %--------------------------------------------------------------------------
 function Qc = computeModeCoupling(mesh, Phi, k, q_inf, beta, b_ref)
-% Numerical quadrature of piston-theory pressure projected onto mode pairs.
+% 2×2 Gauss quadrature of piston-theory pressure projected onto mode pairs.
 %
-%   For each Q4 element, approximate the pressure induced by mode j:
-%     p_j(x) ≈ (2·q/β) · [ i·k·<w_j>/b_ref  +  d<w_j>/dx ]
-%   then integrate against mode i to fill Q_ij.
+%   For each Q4 element, the piston-theory pressure induced by mode j is:
+%     p_j(x) = (2·q/β) · [ i·k·w_j/b_ref  +  dw_j/dx ]
+%   integrated against mode i using bilinear Q4 shape functions and
+%   exact 2×2 Gauss quadrature (exact for bilinear integrands on quads).
 %
-%   dw/dx is computed from the mean out-of-plane (DOF 3) of left and right
-%   edge node pairs, divided by the element chordwise extent.
+%   dw/dx is computed in physical space via the Jacobian inverse.
 
 nModes = size(Phi, 2);
 nEle   = size(mesh.connect, 1);
@@ -67,46 +69,57 @@ Qc     = zeros(nModes, nModes);
 
 coeff = 2 * q_inf / beta;
 
+[xi_g, eta_g, w_g] = gaussPoints2x2();
+
 for ie = 1:nEle
-    nd   = mesh.connect(ie, :);        % [1×4]: n1 n2 n3 n4 (CCW)
-    pts  = mesh.nodes(nd, :);          % [4×3]
+    nd  = mesh.connect(ie, :);      % [1×4]: n1 n2 n3 n4 (CCW)
+    pts = mesh.nodes(nd, 1:2);      % [4×2] x-y coordinates of corner nodes
 
-    % Element area (two-triangle split, exact for general quads)
-    t1   = 0.5 * norm(cross(pts(2,:) - pts(1,:), pts(3,:) - pts(1,:)));
-    t2   = 0.5 * norm(cross(pts(3,:) - pts(1,:), pts(4,:) - pts(1,:)));
-    area = t1 + t2;
+    % Out-of-plane (w) DOF index for each corner node: global DOF = (node-1)*6 + 3
+    wDOFs = (nd - 1) * 6 + 3;      % [1×4]
 
-    % Chordwise extent (X direction) — use mean of TE minus LE x-coordinates
-    x_LE = 0.5 * (pts(1,1) + pts(4,1));   % average of nodes 1 & 4 (LE edge)
-    x_TE = 0.5 * (pts(2,1) + pts(3,1));   % average of nodes 2 & 3 (TE edge)
-    dx   = x_TE - x_LE;
-    if abs(dx) < 1e-12, dx = 1e-12; end   % guard against degenerate elements
+    for g = 1:4
+        xi  = xi_g(g);
+        eta = eta_g(g);
 
-    % Out-of-plane (w) DOF index for each node: global DOF = (node-1)*6 + 3
-    wDOFs = (nd - 1) * 6 + 3;             % [1×4]
+        % Bilinear shape functions on [-1,1]²:
+        %   N1=(1-ξ)(1-η)/4   N2=(1+ξ)(1-η)/4   N3=(1+ξ)(1+η)/4   N4=(1-ξ)(1+η)/4
+        N = [(1-xi)*(1-eta), (1+xi)*(1-eta), (1+xi)*(1+eta), (1-xi)*(1+eta)] / 4;
 
-    for j = 1:nModes
-        w_j = Phi(wDOFs, j);              % [4×1] out-of-plane displacement (mode j)
+        % Shape function derivatives w.r.t. reference coordinates
+        dN_dxi  = [-(1-eta),  (1-eta),  (1+eta), -(1+eta)] / 4;
+        dN_deta = [-(1-xi),  -(1+xi),   (1+xi),   (1-xi) ] / 4;
 
-        % Centroid value (mean of 4 nodes) and chordwise slope
-        w_mean_j = mean(w_j);
+        % Jacobian [2×2]: maps reference (ξ,η) → physical (x,y)
+        J    = [dN_dxi; dN_deta] * pts;   % [2×2]
+        detJ = det(J);
 
-        % dw/dx: finite difference across element chordwise direction
-        %   LE nodes: 1 (bottom-left) and 4 (top-left)
-        %   TE nodes: 2 (bottom-right) and 3 (top-right)
-        w_LE = 0.5 * (w_j(1) + w_j(4));
-        w_TE = 0.5 * (w_j(2) + w_j(3));
-        dw_dx = (w_TE - w_LE) / dx;
+        % Physical derivatives of shape functions: [dN/dx; dN/dy] = J^{-T} [dN/dξ; dN/dη]
+        dN_dxy = J \ [dN_dxi; dN_deta];   % [2×4]
 
-        % Piston-theory pressure induced by mode j (complex, 2nd-order)
-        p_j = coeff * (1i * k / b_ref * w_mean_j + dw_dx);
+        for j = 1:nModes
+            w_j_nodes = Phi(wDOFs, j);                   % [4×1]
+            w_g_val   = N * w_j_nodes;                   % scalar: w at Gauss point
+            dw_dx_g   = dN_dxy(1,:) * w_j_nodes;        % scalar: dw/dx at Gauss point
 
-        % Integrate against all modes i: Q_ij += <Φ_i, p_j> * area
-        for ii = 1:nModes
-            w_i = Phi(wDOFs, ii);
-            w_mean_i = mean(w_i);
-            Qc(ii, j) = Qc(ii, j) + w_mean_i * p_j * area;
+            p_j_g = coeff * (1i * k / b_ref * w_g_val + dw_dx_g);
+
+            for ii = 1:nModes
+                w_i_val   = N * Phi(wDOFs, ii);
+                Qc(ii, j) = Qc(ii, j) + w_g(g) * w_i_val * p_j_g * detJ;
+            end
         end
     end
 end
+end
+
+
+%--------------------------------------------------------------------------
+function [xi_g, eta_g, w_g] = gaussPoints2x2()
+% 2×2 Gauss quadrature points and weights on [-1,1]².
+% Points at ±1/√3; weight = 1 per point (sum = 4 for the unit square).
+g     = 1 / sqrt(3);
+xi_g  = [-g,  g, -g,  g];
+eta_g = [-g, -g,  g,  g];
+w_g   = [ 1,  1,  1,  1];
 end
