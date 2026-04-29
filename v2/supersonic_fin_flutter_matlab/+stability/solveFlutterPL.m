@@ -68,11 +68,18 @@ end
 % FLUTTER — dynamic k > 0 analysis
 % =========================================================================
 if nK > 1
-    Q_dyn = real(mean(Q_k(1:nModes, 1:nModes, 2:end), 3));  % avg over k > 0
+    % Retain the full complex average — imaginary part carries aerodynamic damping.
+    % K_ae = K_modal - q*Q_dyn remains Hermitian (K_modal real-symmetric,
+    % Q_dyn complex Hermitian) so eigenvalues are real.  Discarding Im(Q_dyn)
+    % loses the frequency-dependent stiffness shift from unsteady loading.
+    % NOTE: this is still a quasi-steady check (no k–ω iteration); classical
+    % bending-torsion flutter via mode coalescence requires a p-k loop —
+    % see loewnerInterpolation.m for the intended extension.
+    Q_dyn = mean(Q_k(1:nModes, 1:nModes, 2:end), 3);
 else
     Q_dyn = Q0;
 end
-Q_dyn = (Q_dyn + Q_dyn') / 2;
+Q_dyn = (Q_dyn + Q_dyn') / 2;  % enforce Hermitian (guard against floating-point asymmetry)
 
 % Analytical flutter margin (extrapolation when no crossing found in sweep)
 lam_Qdyn     = real(eig(Q_dyn));

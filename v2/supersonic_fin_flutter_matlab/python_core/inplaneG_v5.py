@@ -64,7 +64,8 @@ def parse_args():
 # ============================================================
 Ef1   = 230e9;  Ef2  = 15e9;   Gf12 = 27e9;  nuf  = 0.20
 Em    = 3.5e9;  num  = 0.35;   Gm   = Em / (2.0 * (1.0 + num))
-rho_f = 1800.0   # kg/m3
+rho_f = 1800.0   # kg/m3 — T700 carbon fibre
+rho_m_mat = 1200.0  # kg/m3 — aerospace epoxy (LY1564 / similar)
 
 FAW_DB300 = 0.300   # kg/m2 — CARBONODB300 +-45 NCF biaxial
 FAW_GA90R = 0.302   # kg/m2 — CARBONOGA90R woven 0/90
@@ -96,15 +97,19 @@ def material_props(Vf):
     t_DB = (FAW_DB300 / 2.0) / (Vf * rho_f)
     t_GA = FAW_GA90R / (Vf * rho_f)
 
+    # Composite density: rule of mixtures  ρ_c = ρ_f·Vf + ρ_m·(1-Vf)
+    rho_c = rho_f * Vf + rho_m_mat * (1.0 - Vf)
+
     E1_GA = 0.5 * (E1 + E2) * kc   # cross-ply average + crimp
     # nu12 for balanced woven [0/90]: CLT cross-ply average of UD plies
     # nu12_woven = 2*Q12 / (Q11+Q22) = 2*nu12_UD*E2 / (E1+E2)  [exact]
     # Derivation: Jones (1999) §2 CLT applied to [0/90] stack; exact (not approx), ≈ 0.032 at Vf=0.50
     nu12_GA = 2.0 * nu12 * E2 / (E1 + E2)  # [Jones, Mechanics of Composite Materials, 1999 §2]
     return {
-        'ud': (E1, E2, G12, nu12),
-        'DB': (E1,    E2, G12, nu12, t_DB),       # NCF: UD constants
-        'GA': (E1_GA, E1_GA, G12 * kc, nu12_GA, t_GA)  # woven: E1=E2; kc on G12 — [Naik & Shembekar 1992]; nu12 — [Jones 1999]
+        'ud':   (E1, E2, G12, nu12),
+        'DB':   (E1,    E2, G12, nu12, t_DB),
+        'GA':   (E1_GA, E1_GA, G12 * kc, nu12_GA, t_GA),
+        'rho_c': rho_c,   # rule-of-mixtures composite density [kg/m³]
     }
 
 
@@ -261,8 +266,9 @@ D = "-" * 70
 
 def print_material(Vf, props):
     E1, E2, G12, nu12 = props['ud']
-    _, _, _, _, t_DB  = props['DB']
+    _, _, _, _, t_DB   = props['DB']
     E1g, _, _, _, t_GA = props['GA']
+    rho_c              = props['rho_c']
     print(W)
     print("  MATERIAL CARDS")
     print(W)
@@ -392,9 +398,10 @@ def main():
 
     # JSON export
     if args.json:
-        E1, E2, G12, nu12 = props['ud']
-        _, _, _, _, t_DB  = props['DB']
+        E1, E2, G12, nu12  = props['ud']
+        _, _, _, _, t_DB   = props['DB']
         E1g, _, _, _, t_GA = props['GA']
+        rho_c              = props['rho_c']
         out = {
             "tool": "inplaneG_v5",
             "inputs": {"Vf": Vf, "layup": args.layup, "target_thickness_mm": target_t},
@@ -424,7 +431,7 @@ def main():
             "flutter_input": {
                 "D66_conservative_Nm": r_tail['D66'],
                 "t_mm": r_tail['t_total']*1e3,
-                "rho_mat_kgm3": 1580,
+                "rho_mat_kgm3": rho_c,  # rule-of-mixtures: rho_f*Vf + rho_m*(1-Vf)
                 "note": "Use tailored D66 (beta=20) — conservative lower bound"
             }
         }

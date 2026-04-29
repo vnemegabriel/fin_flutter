@@ -53,7 +53,7 @@ fprintf('  t=%.2f mm   rho=%.0f kg/m³   E_eff=%.2f GPa\n\n', ...
 %% -----------------------------------------------------------------------
 %% 2. Load flight data → filter supersonic flight points
 %% -----------------------------------------------------------------------
-csvFile = fullfile(fileparts(mfilename('fullpath')), '..', 'data', 'flight_data.csv');
+csvFile = fullfile(fileparts(mfilename('fullpath')), 'data', 'flight_data.csv');
 if ~isfile(csvFile)
     error('flight_data.csv not found at %s', csvFile);
 end

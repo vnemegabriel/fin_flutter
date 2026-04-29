@@ -34,7 +34,18 @@ end
 % rocket-fin flutter analyses (NACA TN 4021, Garrick & Reed 1981).
 beta  = sqrt(Mach^2 - 1);                 % free-stream compressibility factor
 U     = Mach * a;                          % flight speed [m/s]
-b_ref = 0.22;                              % reference semi-chord [m] (mean aero chord / 2)
+
+% Reference semi-chord = MAC/2, derived from mesh root and tip chords.
+% MAC (linear taper) = (2/3)*(cr^2 + cr*ct + ct^2)/(cr + ct)
+% → b_ref = MAC/2 = (cr^2 + cr*ct + ct^2) / (3*(cr + ct))
+y_n   = mesh.nodes(:, 2);
+x_n   = mesh.nodes(:, 1);
+tol_y = (max(y_n) - min(y_n)) * 1e-6;
+x_root = x_n(y_n <= min(y_n) + tol_y);
+x_tip  = x_n(y_n >= max(y_n) - tol_y);
+c_root = max(x_root) - min(x_root);
+c_tip  = max(x_tip)  - min(x_tip);
+b_ref  = (c_root^2 + c_root*c_tip + c_tip^2) / (3*(c_root + c_tip));  % MAC/2 [m]
 
 nModes = size(Phi, 2);
 nK     = length(k_vals);

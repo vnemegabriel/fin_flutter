@@ -610,14 +610,14 @@ The diagonal entries (i = j) are left zero. This function is provided but **not 
 
 **Algorithm**:
 1. Construct modal stiffness: **K**_modal = diag(ω₁², …, ωₙ²).
-2. Compute quasi-steady AIC: **Q**_avg = Re[mean(**Q**_k, 3)] (average over reduced frequencies).
+2. Compute dynamic AIC: **Q**_dyn = mean(**Q**_k(:,:,2:end), 3) — complex Hermitian average over k > 0 (imaginary aerodynamic-damping terms retained; **K**_ae remains Hermitian so eigenvalues are real). **Q**₀ = Re(**Q**_k(:,:,1)) for the quasi-steady divergence check (k = 0).
 3. For each flight condition:
    - Sweep dynamic pressure: q = 0 to 4×q_flight (80 steps).
-   - At each q: **K**_ae(q) = **K**_modal − q·**Q**_avg.
-   - Compute eigenvalues λ_i = eig(**K**_ae).
-   - **Divergence**: First eigenvalue crossing zero (positive → negative). Interpolate to find q_div.
-   - **Flutter**: Set equal to V_div in the quasi-steady approximation.
-   - **Stability margin**: If λ_Q_max = max(eig(**Q**_avg)) > 0, then q_critical = min(ω²)/λ_Q_max and SM = q_critical/q_flight. If all λ_Q ≤ 0: SM = ∞ (aerodynamically stabilised).
+   - At each q: **K**_ae(q) = **K**_modal − q·**Q**_dyn.
+   - Compute eigenvalues λ_i = real(eig(**K**_ae)).
+   - **Divergence**: Uses **Q**₀; first eigenvalue of **B̂** = diag(1/ω)·**Q**₀·diag(1/ω) that is positive gives q_div = 1/λ̂_max.
+   - **Flutter**: First eigenvalue of **K**_ae(q) crossing zero. q_flutter_crit = min(ω²)/max(eig(**Q**_dyn)) if max eig > 0.
+   - **Stability margin**: SM = q_critical/q_flight. If all **Q**_dyn eigenvalues ≤ 0: SM = ∞ (aerodynamically stabilised). **Note**: this is a quasi-steady divergence-type check; classical bending-torsion flutter via mode coalescence requires a frequency-iterating p-k loop.
 
 ### 4.5 Main Orchestrator (`mainFlutterSolver.m`)
 
@@ -633,7 +633,7 @@ The main script coordinates the entire analysis pipeline:
 
 **Step 5 — Assembly and modal analysis**: Assembles K and M, applies BCs, extracts 6 modes.
 
-**Step 6 — Aerodynamics**: Computes **Q**_k at the critical flight point (maximum q_inf) for k ∈ {0.01, 0.05, 0.1, 0.2, 0.5, 1.0}. Normalises by q_inf.
+**Step 6 — Aerodynamics**: Computes **Q**_k at the critical flight point (maximum q_inf) for k ∈ {0, 0.01, 0.05, 0.1, 0.2, 0.5, 1.0} (k = 0 required for quasi-steady divergence analysis). Normalises by q_inf.
 
 **Step 7 — Stability**: Runs `solveFlutterPL` over all flight points. Reports flutter speeds and stability margins.
 
