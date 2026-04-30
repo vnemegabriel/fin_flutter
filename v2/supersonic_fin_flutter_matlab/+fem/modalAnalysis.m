@@ -42,7 +42,12 @@ else
     % Request nModes+3 to have margin after filtering.
     %----------------------------------------------------------------------
     sigma     = 1.0;                               % [rad²/s²] — corresponds to 0.16 Hz
-    K_reg     = K + sigma * speye(nDOF);
+    % Correct shift for generalised EVP: K·φ = λ·M·φ
+    % Adding σ·M (not σ·I) ensures λ_true = λ_shifted - σ exactly.
+    % Using σ·I instead would apply a different effective shift to translational
+    % vs rotational DOFs (since M is not a multiple of I), which inflates
+    % frequencies when rotational mass entries m_rot ≪ m_trans.
+    K_reg     = K + sigma * M;
 
     n_request = min(nModes + 3, nDOF - 1);
 

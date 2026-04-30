@@ -130,7 +130,7 @@ $$
 815.61 & 264.67 & 13.05 \\
 264.67 & 869.28 & 0 \\
 13.05 & 0 & 289.93
-\end{bmatrix} \text{ N·m}
+\end{bmatrix} \text{Nm}
 $$
 
 The non-zero D₁₆ = 13.05 N·m term represents **bending–torsion coupling**: curvature in the x-direction induces twisting moment, and vice versa. This coupling is central to the aeroelastic behaviour of the fin, as discussed in Section 5.

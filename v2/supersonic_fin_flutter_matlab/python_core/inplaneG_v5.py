@@ -23,11 +23,11 @@ def parse_args():
         epilog=__doc__)
     p.add_argument("--vf",        type=float, default=0.50,
                    help="Nominal fiber volume fraction (default: 0.50)")
-    p.add_argument("--beta",      type=float, default=20,
+    p.add_argument("--beta",      type=float, default=5,
                    help="Single beta offset angle [deg]. Omit for full sweep (default: 20)")
     p.add_argument("--layup",     choices=["ar1","more_db","more_ga","equal"],
                    default="ar1", help="Half-stack architecture (default: ar1)")
-    p.add_argument("--thickness", type=float, default=6,
+    p.add_argument("--thickness", type=float, default=5.5,
                    help="Target mold thickness [mm]. Code calculates required plies and true Vf (default: 4.2)")
     p.add_argument("--json",       type=str,   default="lam.json",
                    help="Write results to this JSON file (default: lam.json)")
@@ -68,7 +68,7 @@ def material_props(Vf):
     t_GA = FAW_GA90R / (Vf * rho_f)
 
     # Composite density: rule of mixtures  ρ_c = ρ_f·Vf + ρ_m·(1-Vf)
-    rho_c = rho_f * Vf + rho_m_mat * (1.0 - Vf)
+    rho_c = rho_f * Vf + rho_m * (1.0 - Vf)
 
     E1_GA = 0.5 * (E1 + E2) * kc   # cross-ply average + crimp
     nu12_GA = 2.0 * nu12 * E2 / (E1 + E2) 
