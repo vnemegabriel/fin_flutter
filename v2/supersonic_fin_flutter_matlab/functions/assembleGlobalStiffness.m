@@ -27,7 +27,7 @@ for ie = 1:nEle
     nd      = mesh.connect(ie, :);     % [1×4] node indices
     nodes3D = mesh.nodes(nd, :);       % [4×3]
 
-    Ke = core.CalcularRigidezQLLL(nodes3D, geometry, material, D_flex_3x3, 'selective');
+    Ke = CalcularRigidezQLLL(nodes3D, geometry, material, D_flex_3x3, 'selective');
 
     % Global DOF indices for this element: node-major ordering
     % CalcularRigidezQLLL uses node-major local DOFs:
