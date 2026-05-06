@@ -58,8 +58,13 @@ for ki = 1:nK
     Q_k(:,:,ki) = computeModeCoupling(mesh, Phi, k, q_inf, beta, b_ref);
 end
 
-% Enforce Hermitian symmetry: Q_{ij} = conj(Q_{ji})
-Q_k = (Q_k + permute(conj(Q_k), [2, 1, 3])) / 2;
+% NOTE: Q_k is intentionally left NON-Hermitian.
+% The piston-theory kernel Q_ij = integral(phi_i * d(phi_j)/dx) dA is
+% physically anti-symmetric: Q_ij != Q_ji.  This off-diagonal coupling IS
+% the bending-torsion flutter mechanism.  Hermitian symmetrization
+% (Q + Q^H)/2 zeroes the anti-symmetric part, making all p-k eigenvalues
+% purely imaginary (neutrally stable) — which produces V_flutter = Inf.
+% pkSolveFlutter is written for the non-symmetric case. Do NOT symmetrize.
 end
 
 

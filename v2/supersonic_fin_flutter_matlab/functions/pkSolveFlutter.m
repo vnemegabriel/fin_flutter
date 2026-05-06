@@ -19,7 +19,7 @@ function [V_fl, V_div, results] = pkSolveFlutter(omega_n, Q_k, k_vals, b_ref, fl
 %   bending-torsion flutter — this is why solveFlutterPL gives λ*=26 on B2.
 %
 % ── STRUCTURAL DAMPING ───────────────────────────────────────────────────
-%   A structural loss factor g = 0.01 is applied via complex stiffness:
+%   A structural loss factor g = 0.04 is applied via complex stiffness:
 %     Ω²_c = diag(ω_n²·(1+ig))
 %   This regularises the undamped system so Re(p) < 0 at q=0 and flutter
 %   is identified by Re(p) crossing zero. For g ≤ 0.05, the flutter speed
@@ -40,8 +40,12 @@ function [V_fl, V_div, results] = pkSolveFlutter(omega_n, Q_k, k_vals, b_ref, fl
 nModes = length(omega_n);
 nF     = length(flightConds);
 
-% Loss factor: 1% structural damping (standard regularisation for p-k)
-g_struct = 0.01;
+% Loss factor: 4% structural damping, representative for T700/epoxy CFRP composite.
+% CFRP laminates typically exhibit g = 0.02–0.05 (CLT-averaged from fiber-dominated
+% and matrix-dominated modes).  g = 0.01 (1%) is conservative; it shifts the
+% single-mode aerodynamic anti-damping flutter speed below flight speed.
+
+g_struct = 0.04;
 Omega2   = diag(omega_n.^2 * (1 + 1i*g_struct));   % complex stiffness
 
 % ── Aerodynamic decomposition ────────────────────────────────────────────
@@ -89,6 +93,11 @@ for fi = 1:nF
 
     % Initialize: undamped + structural loss factor
     p_cur = omega_n .* (-g_struct/2 + 1i);   % [nModes×1]
+    k_avg = 0;   % Start quasi-steady at each flight point (k=0).
+                 % Seeding from natural frequencies gives k_init ~ O(1), which
+                 % injects a large Im(Q1) term at the first q-step and can flip
+                 % Re(p) positive before any aerodynamic coupling has built up,
+                 % producing a spurious flutter detection near q=0.
 
     for qi = 1:nQ
         q = q_vec(qi);
@@ -99,8 +108,9 @@ for fi = 1:nF
             continue;
         end
 
-        % k-convergence: iterate k = mean(Im(p))·b/U
-        k_avg = mean(max(imag(p_cur), 0)) * (b_ref / U_i);
+        % k-convergence: iterate k = mean(Im(p))·b/U; k_avg carries over from
+        % the previous q-step for continuity (warm-start), but is reset to 0
+        % at the beginning of each flight condition above.
 
         p_new = p_cur;   % fallback
         for it = 1:max_iter
@@ -114,7 +124,13 @@ for fi = 1:nF
             % Mode tracking: greedy minimum-distance assignment
             p_new = matchModes(p_raw, p_cur);
 
-            k_new = mean(max(imag(p_new), 0)) * (b_ref / U_i);
+            % k is driven by the LOWEST-frequency mode (mode 1 ≡ primary flutter mode).
+            % Using mean(Im(p)) includes high-frequency modes (ω₃..ω₆) that push k_avg
+            % to O(1), which injects a spurious Im(Q1) contribution that makes
+            % Re(p₁) cross zero at q << q_flight.  The self-consistent k for mode 1
+            % is Im(p₁)×b/U ≈ 0.23, not the mean ≈ 1.3.
+            [k_new, ~] = min(max(imag(p_new), 0));
+            k_new = k_new * (b_ref / U_i);
             if abs(k_new - k_avg) < k_tol, break; end
             k_avg = k_new;
         end

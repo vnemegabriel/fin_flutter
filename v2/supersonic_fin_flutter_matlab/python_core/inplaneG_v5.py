@@ -24,20 +24,24 @@ def parse_args():
     p.add_argument("--vf",        type=float, default=0.50,
                    help="Nominal fiber volume fraction (default: 0.50)")
     p.add_argument("--beta",      type=float, default=5,
-                   help="Single beta offset angle [deg]. Omit for full sweep (default: 20)")
+                   help="Single beta offset angle [deg]. Omit for full sweep (default: 5)")
     p.add_argument("--layup",     choices=["ar1","more_db","more_ga","equal"],
                    default="ar1", help="Half-stack architecture (default: ar1)")
-    p.add_argument("--thickness", type=float, default=5.5,
-                   help="Target mold thickness [mm]. Code calculates required plies and true Vf (default: 4.2)")
-    p.add_argument("--json",       type=str,   default="lam.json",
-                   help="Write results to this JSON file (default: lam.json)")
+    p.add_argument("--thickness", type=float, default=8,
+                   help="Target mold thickness [mm]. Code calculates required plies and true Vf")
+    p.add_argument("--json",       type=str,   default=None,
+                   help="Write results to this JSON file (default: lam<t>mm.json)")
     p.add_argument("--quiet",      action="store_true", default=False,
                    help="Suppress console output (useful with --json) (default: False)")
     p.add_argument("--sweep",      action="store_true", default=False,
                    help="Sweep beta 0 to 45 deg in steps of 5, export lam_sweep.json")
     p.add_argument("--sweep-json", type=str,   default="lam_sweep.json",
                    help="Output path for sweep JSON (default: lam_sweep.json)")
-    return p.parse_args()
+    args = p.parse_args()
+    if args.json is None:
+        t_str = str(args.thickness).replace(".", "_")
+        args.json = f"lam{t_str}mm.json"
+    return args
 
 
 # ============================================================
@@ -595,7 +599,6 @@ def _run_beta_sweep(half_desc, props, Vf, args):
         json.dump(out, f, indent=2)
 
     print(f"\n  Sweep JSON -> {path}")
-    print(f"  Next step : run betaSweepSolver.m in MATLAB\n")
 
 
 if __name__ == "__main__":

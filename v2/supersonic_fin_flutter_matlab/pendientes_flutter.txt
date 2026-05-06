@@ -1,0 +1,6 @@
+Pendientes flutter
+
+5/5/26
+
+Testear validez de factor de correccion del aspect ratio AR de Jones (ver conversacion Debug G_eff...)
+

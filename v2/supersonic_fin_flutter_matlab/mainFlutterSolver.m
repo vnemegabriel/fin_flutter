@@ -21,7 +21,7 @@ fprintf('=== Supersonic Fin Flutter Solver ===\n\n');
 %% -----------------------------------------------------------------------
 %% 1. Load laminate (data/lam.json)
 %% -----------------------------------------------------------------------
-lamFile = fullfile(BASE, 'data', 'lam.json');
+lamFile = fullfile(BASE, 'data', 'lam8mm.json'); %Cargar el lam que se quiera analizar
 if ~isfile(lamFile)
     error('lam.json not found at %s', lamFile);
 end
@@ -37,18 +37,21 @@ D_flex = [D.D11_Nm, D.D12_Nm, D.D16_Nm;
 t     = lam.flutter_input.t_mm  * 1e-3;     % shell thickness [m]
 rho_m = lam.flutter_input.rho_mat_kgm3;     % material density [kg/m³]
 
-% Isotropic-equivalent for membrane/shear DOFs (derived from D66)
-E_eff  = 12 * D.D66_Nm / t^3;
+% Isotropic-equivalent for membrane/shear DOFs (derived from D66).
+% NOTE: material.E is NOT used by CalcularRigidezQLLL — that function
+% re-derives E_eff = 12*D66/t^3 internally from D_flex_3x3.  material.nu
+% IS used for the membrane and transverse shear constitutive matrices.
+G_eff  = 12 * D.D66_Nm / t^3;
 nu_eff = 0.3;
 geometry.t  = t;
-material.E  = E_eff;
+material.E  = G_eff;   % informational only; overridden inside CalcularRigidezQLLL
 material.nu = nu_eff;
 
-fprintf('Laminate (beta=20 tailored, T700/Epoxy AR1):\n');
+fprintf('Laminate (beta=5 tailored, T700/Epoxy AR1):\n');
 fprintf('  D11=%.2f  D22=%.2f  D66=%.2f  D16=%.3f  [N·m]\n', ...
         D.D11_Nm, D.D22_Nm, D.D66_Nm, D.D16_Nm);
 fprintf('  t=%.2f mm   rho=%.0f kg/m3   E_eff=%.2f GPa\n\n', ...
-        t*1e3, rho_m, E_eff/1e9);
+        t*1e3, rho_m, G_eff/1e9);
 
 %% -----------------------------------------------------------------------
 %% 2. Load flight data, filter supersonic points (M >= 1.05)
@@ -74,7 +77,7 @@ for i = 1:height(tbl)
         fp.q_inf = 0.5 * rho_i * V(i)^2;
         fp.h_m   = h_m(i); fp.time = tbl.time_s(i);
         if isempty(flightPts), flightPts = fp;
-        else, flightPts(end+1) = fp; %#ok<AGROW>
+        else, flightPts(end+1) = fp; 
         end
     end
 end
@@ -91,25 +94,64 @@ fprintf('Flight data: %d supersonic points  Mach %.2f-%.2f  h %.0f-%.0f m\n', ..
 fprintf('Critical point: Mach=%.3f  q=%.0f Pa  h=%.0f m  t=%.1f s\n\n', ...
         fp_crit.Mach, fp_crit.q_inf, fp_crit.h_m, fp_crit.time);
 
+
+
 %% -----------------------------------------------------------------------
 %% 3. Generate Q4 mesh
 %% -----------------------------------------------------------------------
 cr        = 0.300;   ct   = 0.150;    % root/tip chord [m]
 span      = 0.160;   sweep_deg = 57.4;  % span [m], LE sweep [deg]
-nx        = 24;      ny   = 12;
+nx        = 30;      ny   = 16;
 
 mesh      = GenerarMallaAleta(cr, ct, span, deg2rad(sweep_deg), nx, ny);
+
+%% 3.1 BCs
+saveFigs = true;          % save figures to figDir when true
+
+% Fully fixed base
 rootNodes = find(mesh.nodes(:, 2) < 1e-9);
 fixedDOFs = reshape((rootNodes - 1) * 6 + (1:6), 1, []);
+bc_tag    = 'full';
 
-fprintf('Mesh: %d nodes, %d elements (%dx%d) | %d root DOFs clamped\n\n', ...
-        size(mesh.nodes,1), size(mesh.connect,1), nx, ny, length(fixedDOFs));
+% First two and last two root nodes clamped (LE and TE corners only)
+% rootNodes   = find(mesh.nodes(:, 2) < 1e-9);
+% cornerNodes = [rootNodes(1:4); rootNodes(end-4:end)];
+% fixedDOFs   = reshape((cornerNodes - 1) * 6 + (1:6), 1, []);
+% bc_tag      = 'corners';
+
+% Middle root nodes clamped – X in [120 mm, 180 mm], 6 chordwise elements
+% rootNodes = find(mesh.nodes(:, 2) < 1e-9);
+% midNodes  = rootNodes(mesh.nodes(rootNodes, 1) >= 0.120 & ...
+%                       mesh.nodes(rootNodes, 1) <= 0.180);
+% fixedDOFs = reshape((midNodes - 1) * 6 + (1:6), 1, []);
+% bc_tag    = 'mid120_180';
+
+% LE/TE corners + mid patch X in [150 mm, 180 mm]
+% rootNodes   = find(mesh.nodes(:, 2) < 1e-9);
+% cornerNodes = [rootNodes(1:4); rootNodes(end-3:end)];
+% midNodes    = rootNodes(mesh.nodes(rootNodes, 1) >= 0.150 & ...
+%                         mesh.nodes(rootNodes, 1) <= 0.180);
+% fixedDOFs   = reshape((unique([cornerNodes; midNodes]) - 1) * 6 + (1:6), 1, []);
+% bc_tag      = 'corners_mid150_180';
+
+
+nFixedNodes = length(fixedDOFs) / 6;
+divL = repmat('-', 1, 58);
+fprintf('\n%s\n', divL);
+fprintf('  BC   : %s\n', bc_tag);
+fprintf('  Mesh : %d nodes  |  %d x %d Q4 elements\n', ...
+        size(mesh.nodes,1), nx, ny);
+fprintf('  BCs  : %d root nodes clamped  (%d DOFs fixed)\n', ...
+        nFixedNodes, length(fixedDOFs));
+fprintf('%s\n\n', divL);
 
 %% -----------------------------------------------------------------------
 %% 4. FEM assembly and modal analysis
 %% -----------------------------------------------------------------------
 K = assembleGlobalStiffness(mesh, geometry, material, D_flex);
 M = assembleGlobalMass(mesh, rho_m, t);
+
+
 [K_red, M_red, freeDOFs] = applyDirichletBCs(K, M, fixedDOFs);
 
 nModes = 6;
@@ -119,8 +161,8 @@ f_n = omega_n / (2*pi);
 Phi_full = zeros(size(K,1), nModes);
 Phi_full(freeDOFs, :) = Phi_red;
 
-fprintf('Natural frequencies [Hz]: ');
-fprintf('%.1f  ', f_n); fprintf('\n\n');
+fprintf('  Frequencies [Hz] :'); fprintf(' %8.2f', f_n); fprintf('\n\n');
+
 
 %% -----------------------------------------------------------------------
 %% 5. GAF at critical flight condition
@@ -152,45 +194,88 @@ div_margin = V_div ./ V_flight;
 [min_fl_margin,  i_fl]  = min(fl_margin);
 [min_div_margin, i_div] = min(div_margin);
 
-fprintf('Flutter speed (p-k, g=%.2f):\n', pkRes.g_struct);
+% ── Structured results block (copy-paste ready for comparison) ────────────
+divE = repmat('=', 1, 58);
+fprintf('%s\n', divE);
+fprintf('  RESULTS  —  BC: %s\n', bc_tag);
+fprintf('%s\n', divE);
+fprintf('  Fixed nodes      : %d   Fixed DOFs: %d\n', nFixedNodes, length(fixedDOFs));
+fprintf('  Frequencies [Hz] :'); fprintf(' %8.2f', f_n); fprintf('\n');
+fprintf('  Flutter  (p-k)   : ');
 if all(isinf(V_fl))
-    fprintf('  V_flutter = STABLE for all %d supersonic points\n', numel(flightPts));
-    fprintf('  (wash-out design: sweep %.1f deg + D16=%.2f N.m suppresses flutter)\n', ...
-            sweep_deg, D_flex(1,3));
+    fprintf('STABLE  (all %d pts, g_struct=%.2f)\n', numel(flightPts), pkRes.g_struct);
 else
-    fprintf('  Min V_flutter = %.0f m/s  at Mach %.3f  (margin = %.1fx)\n', ...
+    fprintf('V_fl  = %6.0f m/s   Mach %.3f   margin %.2fx\n', ...
             V_fl(i_fl), flightPts(i_fl).Mach, min_fl_margin);
 end
-
-fprintf('\nDivergence speed (quasi-steady, k=0):\n');
+fprintf('  Divergence (k=0) : ');
 if all(isinf(V_div))
-    fprintf('  V_div = STABLE for all %d supersonic points\n\n', numel(flightPts));
+    fprintf('STABLE  (all %d pts)\n', numel(flightPts));
 else
-    fprintf('  Min V_div = %.0f m/s  at Mach %.3f  (margin = %.1fx)\n\n', ...
+    fprintf('V_div = %6.0f m/s   Mach %.3f   margin %.2fx\n', ...
             V_div(i_div), flightPts(i_div).Mach, min_div_margin);
 end
+fprintf('%s\n\n', divE);
+
+% ── Append one row to bc_comparison.csv (accumulates across BC runs) ──────
+csvOut     = fullfile(BASE, 'bc_comparison.csv');
+fl_stable  = double(all(isinf(V_fl)));
+div_stable = double(all(isinf(V_div)));
+V_fl_out   = min(V_fl(isfinite(V_fl)));   if isempty(V_fl_out),  V_fl_out  = -1; end
+V_div_out  = min(V_div(isfinite(V_div))); if isempty(V_div_out), V_div_out = -1; end
+fl_mar_out  = min(fl_margin(isfinite(fl_margin)));   if isempty(fl_mar_out),  fl_mar_out  = -1; end
+div_mar_out = min(div_margin(isfinite(div_margin))); if isempty(div_mar_out), div_mar_out = -1; end
+if ~isfile(csvOut)
+    fid = fopen(csvOut, 'w');
+    fprintf(fid, 'bc_tag,fixed_nodes,fixed_DOFs,f1_Hz,f2_Hz,f3_Hz,f4_Hz,f5_Hz,f6_Hz,flutter_stable,V_fl_min_ms,fl_margin,div_stable,V_div_min_ms,div_margin\n');
+    fclose(fid);
+end
+fid = fopen(csvOut, 'a');
+fprintf(fid, '%s,%d,%d,%.2f,%.2f,%.2f,%.2f,%.2f,%.2f,%d,%.1f,%.3f,%d,%.1f,%.3f\n', ...
+    bc_tag, nFixedNodes, length(fixedDOFs), ...
+    f_n(1), f_n(2), f_n(3), f_n(4), f_n(5), f_n(6), ...
+    fl_stable, V_fl_out, fl_mar_out, div_stable, V_div_out, div_mar_out);
+fclose(fid);
 
 %% -----------------------------------------------------------------------
 %% 7. Figures
 %% -----------------------------------------------------------------------
-figDir = fullfile(BASE, 'results');
+
+% -----------------------------------------------------------------------
+% Results folder naming depending the thickness
+% -----------------------------------------------------------------------
+th_mm = lam.inputs.target_thickness_mm;          % thickness in mm (may be numeric or string)
+if isnumeric(th_mm)
+    th_str = num2str(th_mm);
+else
+    th_str = th_mm;
+end
+th_str = strrep(th_str, '.', '_');              % replace decimal point with underscore
+figDir = fullfile(BASE, ['results' th_str 'mm']);
+if ~exist(figDir, 'dir')
+    mkdir(figDir);
+end
 [mach_s, si] = sort(mach_vec);
+% -----------------------------------------------------------------------
 
 % ── Fig 1: Fin mesh ───────────────────────────────────────────────────────
-figure('Color','w','Visible','off');
+figure('Color','w','Visible','on');
 patch('Faces', mesh.connect, 'Vertices', mesh.nodes(:,1:2), ...
       'FaceColor',[0.88 0.93 1],'EdgeColor',[0.4 0.4 0.4],'LineWidth',0.5);
 axis equal tight; grid on; box on;
 xlabel('Chordwise x [m]'); ylabel('Spanwise y [m]');
 title(sprintf('Q4 Mindlin shell mesh — %d×%d elements\ncr=%.0f mm, ct=%.0f mm, span=%.0f mm, \\Lambda=%.1f°', ...
               nx, ny, cr*1e3, ct*1e3, span*1e3, sweep_deg));
-saveas(gcf, fullfile(figDir,'mesh.png'));
+drawnow;
+if saveFigs
+    saveas(gcf, fullfile(figDir, [bc_tag '_mesh.png']));
+end
 
 % ── Fig 2: Mode shapes (patch, interpolated colour) ───────────────────────
 nN    = size(mesh.nodes, 1);
 wDOFs = (0:nN-1)' * 6 + 3;       % out-of-plane DOF per node
 
-figure('Color','w','Visible','off','Position',[100 100 900 700]);
+figure('Color','w','Visible','on','Position',[100 100 900 700]);
 for mi = 1:min(4, nModes)
     subplot(2, 2, mi);
     w_vals = Phi_full(wDOFs, mi);
@@ -199,13 +284,18 @@ for mi = 1:min(4, nModes)
     patch('Faces', mesh.connect, 'Vertices', mesh.nodes(:,1:2), ...
           'FaceVertexCData', w_vals, 'FaceColor','interp', ...
           'EdgeColor',[0.3 0.3 0.3], 'EdgeAlpha', 0.25, 'LineWidth', 0.3);
-    colormap(gca, 'coolwarm'); clim([-1 1]); colorbar;
+    colormap(gca, 'parula'); 
+    caxis([-1 1]);
+    colorbar('Location','eastoutside');
     axis equal tight; grid off; box on;
     title(sprintf('Mode %d — f_n = %.1f Hz', mi, f_n(mi)));
     xlabel('x [m]'); ylabel('y [m]');
 end
 sgtitle('Mass-normalised mode shapes (out-of-plane w, normalised to max=1)');
-saveas(gcf, fullfile(figDir,'mode_shapes.png'));
+drawnow;
+if saveFigs
+    saveas(gcf, fullfile(figDir, [bc_tag '_mode_shapes.png']));
+end
 
 % ── Fig 3: Velocity envelope — V_flight vs V_flutter / V_div ──────────────
 time_s  = [flightPts.time]';
@@ -214,7 +304,7 @@ V_div_s = V_div(si);
 V_flt_s = min(V_flt_s, 5000);   % cap Inf for plotting
 V_div_s = min(V_div_s, 5000);
 
-figure('Color','w','Visible','off','Position',[100 100 900 500]);
+figure('Color','w','Visible','on','Position',[100 100 900 500]);
 hold on;
 % Safe corridor fill (between flight speed and minimum critical speed)
 V_crit = min(V_flt_s, V_div_s);
@@ -247,13 +337,16 @@ title(sprintf(['Aeroelastic velocity envelope  —  \\Lambda=%.1f° swept fin + 
               sum(~isinf(V_fl) & V_fl > V_flight | isinf(V_fl)), numel(flightPts), ...
               sum(~isinf(V_div) & V_div > V_flight | isinf(V_div)), numel(flightPts)));
 legend('Location','best','FontSize',9);
-saveas(gcf, fullfile(figDir,'velocity_envelope.png'));
+% drawnow;
+if saveFigs
+    saveas(gcf, fullfile(figDir, [bc_tag '_velocity_envelope.png']));
+end
 
 % ── Fig 4: p-k damping history at critical flight point ───────────────────
 gam_crit = pkRes.gam_hist{i_crit};
 q_crit   = pkRes.q_hist{i_crit};
 
-figure('Color','w','Visible','off','Position',[100 100 900 450]);
+figure('Color','w','Visible','on','Position',[100 100 900 450]);
 cmap = lines(nModes);
 hold on;
 for mi = 1:nModes
@@ -268,7 +361,10 @@ ylabel('Growth rate \gamma = Re(p)  [rad/s]');
 title(sprintf('p-k damping history — Mach=%.3f, h=%.0f m, g_{struct}=%.2f', ...
               fp_crit.Mach, fp_crit.h_m, pkRes.g_struct));
 legend('Location','best','FontSize',8);
-saveas(gcf, fullfile(figDir,'pk_damping.png'));
+% drawnow;
+if saveFigs
+    saveas(gcf, fullfile(figDir, [bc_tag 'pk_damping.png']));
+end
 
 %% -----------------------------------------------------------------------
 %% 8. Save results
@@ -279,6 +375,7 @@ save(fullfile(figDir, 'flutter.mat'), ...
     'flightPts', 'fp_crit', 'Q_k', 'Q_k_norm', 'k_vals', 'b_ref', ...
     'pkRes', 'D_flex', 't', 'rho_m');
 
-fprintf('Results saved → results/flutter.mat\n');
-fprintf('Plots saved  → results/{mesh, mode_shapes, velocity_envelope, pk_damping}.png\n');
-fprintf('\n=== Done ===\n');
+fprintf('flutter.mat  → %s\n', figDir);
+fprintf('Figures      → %s/[figure]_%s.png\n', figDir, bc_tag);
+fprintf('Comparison   → %s\n', csvOut);
+fprintf('\n=== Done — BC: %s ===\n\n', bc_tag);

@@ -35,6 +35,10 @@ venv/
 env/
 node_modules/
 
+# Results
+lam*.json
+results*
+
 # Temporary
 *.bak
 *.orig
