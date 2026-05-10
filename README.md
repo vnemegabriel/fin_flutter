@@ -185,13 +185,13 @@ The value g = 0.02 is a conservative lower bound for T700/epoxy from DMA literat
 
 | Source | Used for |
 |---|---|
-| Lighthill (1953) *Proc. R. Soc. A* | 2nd-order piston theory pressure kernel |
-| Bisplinghoff, Ashley & Halfman (1955) *Aeroelasticity* | p-k method formulation |
-| Weisshaar (1981) *J. Aircraft* 18(8) | Aeroelastic tailoring via D16/global β rotation |
-| Jones (1946) *NACA Report 835* | Low-AR fin supersonic aerodynamic theory |
+| [Lighthill (1953) *J. Aeronautical Sciences* 20(6):402–406](https://arc.aiaa.org/doi/10.2514/8.2657) | 2nd-order piston theory pressure kernel |
+| [Bisplinghoff, Ashley & Halfman (1955) *Aeroelasticity*, Dover ed.](https://store.doverpublications.com/products/9780486691893) | p-k method formulation |
+| [Weisshaar (1981) *J. Aircraft* 18(8):669–676](https://doi.org/10.2514/3.57542) | Aeroelastic tailoring via D16/global β rotation |
+| [Jones (1946) *NACA Report 835*](https://ntrs.nasa.gov/citations/19930091913) | Low-AR fin supersonic aerodynamic theory |
 | Jones (1999) *Mechanics of Composite Materials* (2nd ed.) | CLT laminate theory |
-| Halpin & Tsai (1969) *AFML-TR-67-423* | Composite micromechanics (Halpin-Tsai) |
-| AIAA S-080 (1999) / MIL-A-8870C (1993) | Flutter certification standards |
+| [Halpin & Tsai (1969) *AFML-TR-67-423*](https://apps.dtic.mil/sti/tr/pdf/ADA306357.pdf) | Composite micromechanics (Halpin-Tsai) |
+| [MIL-A-8870C (1993)](http://everyspec.com/MIL-SPECS/MIL-SPECS-MIL-A/MIL-A-8870C_6746/) | Flutter and divergence certification requirements |
 
 ---
 
